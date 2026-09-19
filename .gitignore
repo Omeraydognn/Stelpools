@@ -1,0 +1,25 @@
+# --- sırlar: asla commit edilmez ---
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+secrets/
+# deploy.testnet.env bilerek takip edilir: içinde yalnızca public
+# contract id'leri ve public anahtarlar var, gizli anahtar yok.
+
+# --- derleme çıktıları ---
+target/
+dist/
+build/
+*.wasm
+
+# --- bağımlılıklar ---
+node_modules/
+
+# --- araç/işletim sistemi artıkları ---
+.DS_Store
+*.log
+.brand-preview/
+.vscode/
+.idea/
