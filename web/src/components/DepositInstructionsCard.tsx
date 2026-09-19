@@ -2,10 +2,12 @@ import { useState } from "react";
 
 import { isTestnet } from "../lib/config";
 import { formatIban } from "../lib/format";
+import { useT } from "../lib/i18n";
 import type { DepositInstructions } from "../lib/sep6";
 import { Button } from "./ui";
 
 function CopyRow({ label, value, mono = true }: { label: string; value: string; mono?: boolean }) {
+  const t = useT();
   const [copied, setCopied] = useState(false);
   if (!value) return null;
   return (
@@ -20,10 +22,10 @@ function CopyRow({ label, value, mono = true }: { label: string; value: string; 
             setCopied(true);
             setTimeout(() => setCopied(false), 1500);
           }}
-          aria-label={`${label} kopyala`}
+          aria-label={t("ui.copyLabel", { label })}
           className="min-h-10 rounded-[var(--radius)] px-2 text-xs text-muted-foreground hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
         >
-          {copied ? "kopyalandı" : "kopyala"}
+          {copied ? t("ui.copied") : t("ui.copy")}
         </button>
       </div>
     </div>
@@ -49,29 +51,24 @@ export function DepositInstructionsCard({
   simulating: boolean;
   simulated: boolean;
 }) {
+  const t = useT();
   return (
     <div className="grid gap-3 rounded-[var(--radius)] border border-primary/30 bg-primary/5 p-3">
       <div>
-        <p className="text-sm font-medium">Bankanızdan bu hesaba gönderin</p>
-        <p className="mt-1 text-xs text-muted-foreground">
-          Açıklamaya kodu birebir yazın — anchor parayı bu kodla sizin işleminize bağlar.
-          Kod olmadan transfer eşleşmez.
-        </p>
+        <p className="text-sm font-medium">{t("inst.title")}</p>
+        <p className="mt-1 text-xs text-muted-foreground">{t("inst.body")}</p>
       </div>
 
       <div>
-        <CopyRow label="Banka" value={instructions.bankName} mono={false} />
-        <CopyRow label="IBAN" value={formatIban(instructions.iban)} />
-        <CopyRow label="Tutar" value={`${instructions.amountTry} TRY`} />
-        <CopyRow label="Açıklama" value={instructions.reference} />
+        <CopyRow label={t("inst.bank")} value={instructions.bankName} mono={false} />
+        <CopyRow label={t("inst.iban")} value={formatIban(instructions.iban)} />
+        <CopyRow label={t("inst.amount")} value={`${instructions.amountTry} TRY`} />
+        <CopyRow label={t("inst.reference")} value={instructions.reference} />
       </div>
 
       {isTestnet && (
         <div className="grid gap-2 border-t border-border pt-3">
-          <p className="text-xs text-muted-foreground">
-            Testnet: gerçek bir havale yapılamayacağı için anchor'ın sandbox'ı transferi sizin
-            yerinize kaydedebilir. Canlıda bu düğme olmaz; parayı bankanızdan siz gönderirsiniz.
-          </p>
+          <p className="text-xs text-muted-foreground">{t("inst.sandboxNote")}</p>
           <Button
             variant="ghost"
             className="justify-self-start"
@@ -79,7 +76,7 @@ export function DepositInstructionsCard({
             disabled={simulated}
             onClick={onSimulate}
           >
-            {simulated ? "Transfer kaydedildi" : "Havaleyi gönderdim (sandbox)"}
+            {simulated ? t("inst.simulated") : t("inst.simulate")}
           </Button>
         </div>
       )}

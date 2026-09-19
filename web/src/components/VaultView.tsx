@@ -4,12 +4,15 @@ import { loadAccount, type AccountState } from "../lib/account";
 import { indicativePrice } from "../lib/anchor";
 import { config } from "../lib/config";
 import {
+  defaultTryAmount,
   formatUsdc,
   ibanProblem,
   isValidIban,
   normalizeIban,
+  parseAmount,
   parseUsdcToStroops,
 } from "../lib/format";
+import { num, pct, t, usdc as fmtUsdc, useT, type Key } from "../lib/i18n";
 import { positionFor, readHistory } from "../lib/history";
 import { depositTry, withdrawToIban, type RampDetail, type RampStage } from "../lib/sep6";
 import { deposit, explorerContract, explorerTx, readVault, withdraw } from "../lib/vault";
@@ -25,21 +28,23 @@ import { SwapPanel } from "./SwapPanel";
 import { BlockerList, blockersForProvide } from "./Requirements";
 import { Amount, Button, Card, ErrorState, Field, Skeleton } from "./ui";
 
-const tl = (n: number) =>
-  n.toLocaleString("tr-TR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+/** Every transaction stage the two panels can be in. */
+const STAGE_KEYS = new Set([
+  "building",
+  "signing",
+  "submitting",
+  "confirming",
+  "authenticating",
+  "registering",
+  "requesting",
+  "transferring",
+  "waiting",
+  "done",
+]);
 
-const STAGE_COPY: Record<string, string> = {
-  building: "Hazırlanıyor…",
-  signing: "Cüzdanınızda imzalayın…",
-  submitting: "Gönderiliyor…",
-  confirming: "Onay bekleniyor…",
-  authenticating: "Anchor'a bağlanılıyor…",
-  registering: "Kimlik kaydı yapılıyor…",
-  requesting: "Anchor işlemi açılıyor…",
-  transferring: "Transfer gönderiliyor…",
-  waiting: "Anchor işliyor…",
-  done: "Tamamlandı",
-};
+function stageText(stage: string): string {
+  return STAGE_KEYS.has(stage) ? t(`stage.${stage}` as Key) : stage;
+}
 
 /** The numbers across the top, the way a pool page always opens. */
 function PoolHeader({
@@ -57,30 +62,31 @@ function PoolHeader({
   apr: number | null;
   advanced: bigint;
 }) {
+  const tt = useT();
   const tvl = Number(tvlUsdc) / 1e7;
   const stats: Array<[string, string]> = [
-    ["TVL", `${tl(tvl)} USDC`],
-    ["TVL (TRY)", rate ? `${tl(tvl * rate)} TRY` : "—"],
-    ["Pay fiyatı", `${(Number(sharePrice) / 1e7).toLocaleString("tr-TR", { maximumFractionDigits: 6 })} USDC`],
-    ["Çıkış komisyonu", `%${(feeBps / 100).toLocaleString("tr-TR")}`],
-    ["Getiri (yıllık)", apr === null ? "—" : `%${apr.toLocaleString("tr-TR", { maximumFractionDigits: 2 })}`],
+    [tt("pool.tvl"), `${num(tvl)} USDC`],
+    [tt("pool.tvlTry"), rate ? `${num(tvl * rate)} TRY` : "—"],
+    [tt("pool.sharePrice"), `${num(Number(sharePrice) / 1e7, 0, 6)} USDC`],
+    [tt("pool.withdrawFee"), pct(feeBps / 100)],
+    [tt("pool.apr"), apr === null ? "—" : pct(apr)],
     ...(advanced > 0n
-      ? ([["Önden verilen", `${tl(Number(advanced) / 1e7)} USDC`]] as Array<[string, string]>)
+      ? ([[tt("pool.advanced"), `${fmtUsdc(advanced)} USDC`]] as Array<[string, string]>)
       : []),
   ];
   return (
     <div className="flex flex-wrap items-end justify-between gap-4 border-b border-border pb-4">
       <div>
-        <h2 className="text-2xl font-semibold tracking-tight">USDC / TRY</h2>
+        <h2 className="text-2xl font-semibold tracking-tight">{tt("pool.pair")}</h2>
         <p className="mt-1 text-sm text-muted-foreground">
-          TRY'yi USDC'ye çevir, istersen kasada çalıştır, istediğinde geri çık.{" "}
+          {tt("pool.tagline")}{" "}
           <a
             href={explorerContract()}
             target="_blank"
             rel="noreferrer"
             className="text-primary underline underline-offset-4"
           >
-            Kontrat
+            {tt("pool.contract")}
           </a>
         </p>
       </div>
@@ -100,7 +106,7 @@ function StageNote({ stage }: { stage: string | null }) {
   if (!stage) return null;
   return (
     <p role="status" className="text-xs text-muted-foreground">
-      {STAGE_COPY[stage] ?? stage}
+      {stageText(stage)}
     </p>
   );
 }
@@ -117,19 +123,20 @@ function DepositPanel({
   rate: number | null;
   onDone: () => void;
 }) {
+  const t = useT();
   const usdcBalance = account?.usdc ?? 0;
   // The anchor cannot deliver USDC to an account without a trustline; the
   // deposit would sit in `pending_trust` indefinitely.
   const needsTrustline = Boolean(account?.exists) && !account?.hasUsdcTrustline;
   const [mode, setMode] = useState<"try" | "usdc">("try");
-  const [tryAmount, setTryAmount] = useState("1.000");
+  const [tryAmount, setTryAmount] = useState(defaultTryAmount);
   const [usdcAmount, setUsdcAmount] = useState("10");
   const [stage, setStage] = useState<string | null>(null);
   const [rampDetail, setRampDetail] = useState<RampDetail | null>(null);
   const [error, setError] = useState<Error | null>(null);
   const [receipt, setReceipt] = useState<string | null>(null);
 
-  const tryValue = Number(tryAmount.replace(/\./g, "").replace(",", ".")) || 0;
+  const tryValue = parseAmount(tryAmount);
   const usdcStroops = parseUsdcToStroops(usdcAmount);
   const estimatedUsdc = rate && tryValue ? tryValue / rate : null;
 
@@ -151,11 +158,11 @@ function DepositPanel({
 
   return (
     <div className="grid gap-4">
-      <div role="tablist" aria-label="Yatırma yöntemi" className="grid grid-cols-2 gap-1 rounded-[var(--radius)] bg-secondary p-1">
+      <div role="tablist" aria-label={t("dep.method")} className="grid grid-cols-2 gap-1 rounded-[var(--radius)] bg-secondary p-1">
         {(
           [
-            ["try", "TRY ile"],
-            ["usdc", "USDC ile"],
+            ["try", t("dep.withTry")],
+            ["usdc", t("dep.withUsdc")],
           ] as const
         ).map(([key, label]) => (
           <button
@@ -176,55 +183,54 @@ function DepositPanel({
       {mode === "try" ? (
         <>
           <Field
-            label="Yatırılacak"
+            label={t("dep.amount")}
             value={tryAmount}
             onChange={(e) => setTryAmount(e.target.value)}
             inputMode="decimal"
             autoComplete="off"
             suffix="TRY"
-            hint="Anchor limitleri: 50 – 3.000 TRY"
+            hint={t("dep.tryHint")}
           />
           <div className="rounded-[var(--radius)] border border-border bg-card p-3">
-            <p className="mb-1 text-xs text-muted-foreground">Kasaya girecek (tahmini)</p>
+            <p className="mb-1 text-xs text-muted-foreground">{t("dep.estimate")}</p>
             <Amount
-              value={estimatedUsdc ? tl(estimatedUsdc) : "—"}
+              value={estimatedUsdc ? num(estimatedUsdc) : "—"}
               unit="USDC"
               size="lg"
             />
             <p className="mt-2 text-xs text-muted-foreground">
-              Kur <span className="tnum">{rate ? tl(rate) : "—"}</span> TRY/USDC — anchor'ın
-              SEP-38 fiyatlaması. Kurdaki ani ve yüksek dalgalanmalar bizden kaynaklanmaz.
+              {t("dep.rateNote", { rate: rate ? num(rate) : "—" })}
             </p>
           </div>
           <ol className="grid gap-1 rounded-[var(--radius)] bg-secondary p-3 text-xs text-muted-foreground">
-            <li>1. Anchor'a TRY transferi (sandbox'ta simüle edilir) → cüzdanınıza USDC geçer</li>
-            <li>2. Aynı akışta USDC kasaya yatırılır ve pay alırsınız</li>
+            <li>{t("dep.step1")}</li>
+            <li>{t("dep.step2")}</li>
           </ol>
         </>
       ) : (
         <>
           <Field
-            label="Yatırılacak"
+            label={t("dep.amount")}
             value={usdcAmount}
             onChange={(e) => setUsdcAmount(e.target.value)}
             inputMode="decimal"
             autoComplete="off"
             suffix="USDC"
-            hint={`Cüzdanınızda ${tl(usdcBalance)} USDC var.`}
+            hint={t("swap.youHaveUsdc", { amount: num(usdcBalance) })}
           />
           <button
             type="button"
             onClick={() => setUsdcAmount(String(usdcBalance))}
             className="justify-self-start rounded-[var(--radius)] px-2 py-1 text-xs font-medium text-primary hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
-            Tümü
+            {t("ui.all")}
           </button>
         </>
       )}
 
       {mode === "try" && needsTrustline && (
         <p className="rounded-[var(--radius)] border border-destructive/40 bg-destructive/10 p-3 text-xs">
-          Cüzdanınızda USDC trustline yok. Anchor USDC'yi gönderemez ve işlem beklemede kalır.
+          {t("dep.needTrustline")}
         </p>
       )}
 
@@ -250,7 +256,7 @@ function DepositPanel({
         loading={Boolean(stage)}
         onClick={() =>
           void run(async () => {
-            if (!address) throw new Error("Cüzdan bağlı değil");
+            if (!address) throw new Error(t("wallet.notConnected"));
             if (mode === "try") {
               const { usdc } = await depositTry(
                 address,
@@ -261,23 +267,26 @@ function DepositPanel({
                 },
               );
               const assets = parseUsdcToStroops(usdc);
-              if (!assets) throw new Error("Anchor'dan gelen tutar okunamadı.");
+              if (!assets) throw new Error(t("dep.badAnchorAmount"));
               const { shares } = await deposit(address, assets, setStage);
-              return `${formatUsdc(assets)} USDC kasaya yatırıldı, ${formatUsdc(shares)} pay aldınız.`;
+              return t("dep.receiptTry", {
+                assets: formatUsdc(assets),
+                shares: formatUsdc(shares),
+              });
             }
-            if (!usdcStroops) throw new Error("Geçerli bir USDC tutarı girin.");
+            if (!usdcStroops) throw new Error(t("dep.badUsdcAmount"));
             const { shares, hash } = await deposit(address, usdcStroops, setStage);
-            return `${formatUsdc(shares)} pay aldınız. İşlem: ${hash.slice(0, 10)}…`;
+            return t("dep.receiptUsdc", { shares: formatUsdc(shares), hash: hash.slice(0, 10) });
           })
         }
       >
         {!address
-          ? "Önce cüzdan bağlayın"
+          ? t("ui.connectFirst")
           : stage
-            ? (STAGE_COPY[stage] ?? "Çalışıyor…")
+            ? stageText(stage)
             : mode === "try"
-              ? "TRY yatır ve kasaya gir"
-              : "Kasaya yatır"}
+              ? t("dep.depositTryCta")
+              : t("dep.depositUsdcCta")}
       </Button>
     </div>
   );
@@ -301,6 +310,7 @@ function WithdrawPanel({
   symbol: string;
   onDone: () => void;
 }) {
+  const t = useT();
   const [shares, setShares] = useState("");
   const [toBank, setToBank] = useState(false);
   const [iban, setIban] = useState("");
@@ -318,30 +328,33 @@ function WithdrawPanel({
   return (
     <div className="grid gap-4">
       <Field
-        label="Çekilecek pay"
+        label={t("wd.shares")}
         value={shares}
         onChange={(e) => setShares(e.target.value)}
         inputMode="decimal"
         autoComplete="off"
         suffix={symbol}
         placeholder="0"
-        hint={`${tl(held)} ${symbol} payınız var, bugünkü değeri ${tl(Number(userAssets) / 1e7)} USDC.`}
+        hint={t("wd.hint", {
+          shares: num(held),
+          symbol,
+          value: fmtUsdc(userAssets),
+        })}
       />
       <button
         type="button"
         onClick={() => setShares(String(held))}
         className="justify-self-start rounded-[var(--radius)] px-2 py-1 text-xs font-medium text-primary hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
-        Tümü
+        {t("ui.all")}
       </button>
 
       <div className="rounded-[var(--radius)] border border-border bg-card p-3">
-        <p className="mb-1 text-xs text-muted-foreground">Alacağınız</p>
-        <Amount value={estimated ? tl(estimated) : "—"} unit="USDC" size="lg" />
+        <p className="mb-1 text-xs text-muted-foreground">{t("swap.youGet")}</p>
+        <Amount value={estimated ? num(estimated) : "—"} unit="USDC" size="lg" />
         <p className="mt-2 text-xs text-muted-foreground">
-          %{(feeBps / 100).toLocaleString("tr-TR")} çıkış komisyonu düşülür ve kasada kalır;
-          yani kasada kalanların payına yazılır.
-          {rate && estimated ? ` ≈ ${tl(estimated * rate)} TRY` : ""}
+          {t("wd.feeNote", { fee: pct(feeBps / 100) })}
+          {rate && estimated ? ` ≈ ${num(estimated * rate)} TRY` : ""}
         </p>
       </div>
 
@@ -352,7 +365,7 @@ function WithdrawPanel({
           onChange={(e) => setToBank(e.target.checked)}
           className="size-4 accent-[var(--primary)]"
         />
-        Devamında TRY olarak banka hesabıma gönder
+        {t("wd.toBank")}
       </label>
 
       {toBank && (
@@ -367,15 +380,14 @@ function WithdrawPanel({
             error={ibanError}
           />
           <Field
-            label="Banka adı"
+            label={t("swap.bankLabel")}
             value={bank}
             onChange={(e) => setBank(e.target.value)}
             autoComplete="off"
-            placeholder="Örn. Akbank"
+            placeholder={t("swap.bankPlaceholder")}
           />
           <p className="rounded-[var(--radius)] bg-secondary p-3 text-xs text-muted-foreground">
-            USDC önce cüzdanınıza iner, sonra anchor'ın hazinesine gönderilir ve anchor TRY'yi
-            IBAN'ınıza öder. İki imza istenir.
+            {t("wd.bankNote")}
           </p>
         </div>
       )}
@@ -393,7 +405,7 @@ function WithdrawPanel({
           setReceipt(null);
           try {
             const { assets, hash } = await withdraw(address, sharesStroops, setStage);
-            let note = `${formatUsdc(assets)} USDC cüzdanınıza çekildi. İşlem: ${hash.slice(0, 10)}…`;
+            let note = t("wd.receipt", { amount: formatUsdc(assets), hash: hash.slice(0, 10) });
             if (toBank && isValidIban(iban)) {
               const out = await withdrawToIban(
                 address,
@@ -402,7 +414,7 @@ function WithdrawPanel({
                 bank,
                 (s: RampStage) => setStage(s),
               );
-              note += ` Anchor ${tl(Number(out.try))} TRY'yi IBAN'ınıza gönderdi.`;
+              note += t("wd.receiptBank", { amount: num(Number(out.try)) });
             }
             setReceipt(note);
             setShares("");
@@ -417,18 +429,19 @@ function WithdrawPanel({
         }}
       >
         {!address
-          ? "Önce cüzdan bağlayın"
+          ? t("ui.connectFirst")
           : stage
-            ? (STAGE_COPY[stage] ?? "Çalışıyor…")
+            ? stageText(stage)
             : toBank
-              ? "Çek ve TRY olarak gönder"
-              : "Kasadan çek"}
+              ? t("wd.ctaBank")
+              : t("wd.cta")}
       </Button>
     </div>
   );
 }
 
 export function VaultView({ address }: { address: string | null }) {
+  const t = useT();
   const [tab, setTab] = useState<"swap" | "deposit" | "withdraw">("swap");
 
   // Reads need a source account for simulation; fall back to the vault admin
@@ -500,11 +513,8 @@ export function VaultView({ address }: { address: string | null }) {
         <div className="grid gap-4">
           <Card className="grid gap-3">
             <div className="flex flex-wrap items-baseline justify-between gap-2">
-              <h3 className="text-sm font-medium">Pay fiyatı</h3>
-              <p className="text-xs text-muted-foreground">
-                Kasanın kendi event'lerinden; RPC'nin sakladığı son ledger penceresi kadar
-                geriye gider.
-              </p>
+              <h3 className="text-sm font-medium">{t("chart.title")}</h3>
+              <p className="text-xs text-muted-foreground">{t("chart.source")}</p>
             </div>
             {history.initial && history.loading ? (
               <Skeleton className="h-[120px]" />
@@ -514,22 +524,21 @@ export function VaultView({ address }: { address: string | null }) {
           </Card>
 
           <Card className="grid gap-3">
-            <h3 className="text-sm font-medium">Pozisyonunuz</h3>
+            <h3 className="text-sm font-medium">{t("position.title")}</h3>
             {!address ? (
-              <p className="text-sm text-muted-foreground">
-                Pozisyonunuzu görmek için cüzdanınızı bağlayın.
-              </p>
+              <p className="text-sm text-muted-foreground">{t("position.connect")}</p>
             ) : userShares === 0n ? (
-              <p className="text-sm text-muted-foreground">
-                Kasada payınız yok. Sağdaki panelden TRY ya da USDC ile girebilirsiniz.
-              </p>
+              <p className="text-sm text-muted-foreground">{t("position.empty")}</p>
             ) : (
               <>
                 <dl className="grid grid-cols-2 gap-4 sm:grid-cols-3">
                   {[
-                    ["Payınız", `${tl(Number(userShares) / 1e7)} ${symbol}`],
-                    ["Değeri", `${tl(Number(userAssets) / 1e7)} USDC`],
-                    ["TRY karşılığı", rate ? `${tl((Number(userAssets) / 1e7) * rate)} TRY` : "—"],
+                    [t("position.shares"), `${fmtUsdc(userShares)} ${symbol}`],
+                    [t("position.value"), `${fmtUsdc(userAssets)} USDC`],
+                    [
+                      t("position.inTry"),
+                      rate ? `${num((Number(userAssets) / 1e7) * rate)} TRY` : "—",
+                    ],
                   ].map(([label, value]) => (
                     <div key={label}>
                       <dt className="text-xs text-muted-foreground">{label}</dt>
@@ -539,15 +548,16 @@ export function VaultView({ address }: { address: string | null }) {
                 </dl>
                 {pnl && (
                   <p className="text-xs text-muted-foreground">
-                    Bu pencerede net{" "}
-                    <span className="tnum">{tl(Number(pnl.netContributed) / 1e7)}</span> USDC
-                    koydunuz, bugünkü değeri{" "}
-                    <span className="tnum">{tl(Number(userAssets) / 1e7)}</span> USDC —{" "}
+                    {t("position.pnlPrefix")}
+                    <span className="tnum">{fmtUsdc(pnl.netContributed)}</span>
+                    {t("position.pnlMid")}
+                    <span className="tnum">{fmtUsdc(userAssets)}</span>
+                    {t("position.pnlSuffix")}
                     <span className={pnl.gain >= 0 ? "text-primary" : "text-destructive"}>
                       {pnl.gain >= 0 ? "+" : "−"}
-                      <span className="tnum">{tl(Math.abs(pnl.gain) / 1e7)}</span> USDC
+                      <span className="tnum">{fmtUsdc(Math.abs(pnl.gain))}</span> USDC
                     </span>
-                    . Daha eski yatırmalar bu hesaba girmez.
+                    {t("position.pnlTail")}
                   </p>
                 )}
               </>
@@ -567,37 +577,28 @@ export function VaultView({ address }: { address: string | null }) {
           {history.data && <PoolActivity events={history.data.events} />}
 
           <Card className="grid gap-2 text-xs text-muted-foreground">
-            <h3 className="text-sm font-medium text-foreground">Nasıl çalışıyor</h3>
+            <h3 className="text-sm font-medium text-foreground">{t("how.title")}</h3>
+            <p>{t("how.p1")}</p>
+            <p>{t("how.p2")}</p>
             <p>
-              Fiat hiç kontrata girmez. TL, anchor'ın kurumsal IBAN'ı üzerinden girer ve çıkar;
-              kontrat yalnızca USDC havuzunu ve payları tutar.
+              {t("how.p3Prefix")}
+              <span className="tnum text-foreground">{symbol}</span>
+              {t("how.p3Suffix")}
             </p>
             <p>
-              Kasaya gelen her USDC, pay basılmadan geldiğinde (çıkış komisyonu, getiri
-              dağıtımı) mevcut payların değerini yükseltir. Pay fiyatı bu yüzden yalnızca artar.
-            </p>
-            <p>
-              Payınız <span className="tnum text-foreground">{symbol}</span> adlı bir SEP-41
-              token. Transfer edilebilir, bir başkasına yetki verilebilir, cüzdanda görünür —
-              başka ağlardaki LP token'ları gibi. Payı kime gönderirseniz kasadaki hak da
-              onunla birlikte gider.
-            </p>
-            <p>
-              Çekimler hiçbir koşulda durdurulamaz — yatırımlar duraklatılsa bile.
-              {depositCap > 0n && (
-                <> Mevduat tavanı {tl(Number(depositCap) / 1e7)} USDC.</>
-              )}
+              {t("how.p4")}
+              {depositCap > 0n && t("how.depositCap", { amount: fmtUsdc(depositCap) })}
             </p>
           </Card>
         </div>
 
         <Card className="grid gap-4 self-start">
-          <div role="tablist" aria-label="İşlem" className="grid grid-cols-3 gap-1 rounded-[var(--radius)] bg-secondary p-1">
+          <div role="tablist" aria-label={t("tab.group")} className="grid grid-cols-3 gap-1 rounded-[var(--radius)] bg-secondary p-1">
             {(
               [
-                ["swap", "Takas"],
-                ["deposit", "Yatır"],
-                ["withdraw", "Çek"],
+                ["swap", t("tab.swap")],
+                ["deposit", t("tab.deposit")],
+                ["withdraw", t("tab.withdraw")],
               ] as const
             ).map(([key, label]) => (
               <button
@@ -619,7 +620,7 @@ export function VaultView({ address }: { address: string | null }) {
 
           {paused && tab === "deposit" && (
             <p className="rounded-[var(--radius)] border border-destructive/40 bg-destructive/10 p-3 text-xs">
-              Yatırımlar geçici olarak durduruldu. Çekimler açık.
+              {t("tab.pausedNote")}
             </p>
           )}
 

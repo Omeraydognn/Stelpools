@@ -2,6 +2,7 @@ import { Transaction } from "@stellar/stellar-sdk";
 
 import { config } from "./config";
 import { signXdr } from "./wallet";
+import { t } from "./i18n";
 
 /**
  * SEP-10 against the anchor, straight from the browser.
@@ -24,7 +25,9 @@ async function anchorError(res: Response, fallback: string): Promise<Error> {
     detail = (await res.text().catch(() => "")).slice(0, 200);
   }
   if (res.status === 401 || res.status === 403) {
-    return new Error("Anchor oturumu geçersiz. Cüzdanı ayırıp yeniden bağlanın.");
+    // Tagged rather than matched on wording: `withToken` retries on this
+    // flag, and the message is translated.
+    return Object.assign(new Error(t("err.sessionInvalid")), { expiredSession: true });
   }
   return new Error(detail ? `${fallback}: ${detail}` : `${fallback} (${res.status})`);
 }
@@ -35,7 +38,7 @@ export async function authenticate(address: string): Promise<string> {
   url.searchParams.set("home_domain", config.anchorHomeDomain);
 
   const challengeRes = await fetch(url);
-  if (!challengeRes.ok) throw await anchorError(challengeRes, "Anchor challenge alınamadı");
+  if (!challengeRes.ok) throw await anchorError(challengeRes, t("err.challengeFailed"));
   const challenge = (await challengeRes.json()) as {
     transaction: string;
     network_passphrase?: string;
@@ -44,13 +47,13 @@ export async function authenticate(address: string): Promise<string> {
     challenge.network_passphrase &&
     challenge.network_passphrase !== config.networkPassphrase
   ) {
-    throw new Error("Anchor farklı bir ağ için challenge gönderdi");
+    throw new Error(t("err.wrongNetwork"));
   }
 
   // The challenge is a sequence-0 transaction that can never be submitted, but
   // we still show the wallet prompt — the user must consent to proving identity.
   const tx = new Transaction(challenge.transaction, config.networkPassphrase);
-  if (tx.sequence !== "0") throw new Error("Challenge geçersiz: sequence 0 olmalı");
+  if (tx.sequence !== "0") throw new Error(t("err.badSequence"));
   const signed = await signXdr(challenge.transaction, address);
 
   const tokenRes = await fetch(new URL("/auth", config.anchorUrl), {
@@ -58,7 +61,7 @@ export async function authenticate(address: string): Promise<string> {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ transaction: signed }),
   });
-  if (!tokenRes.ok) throw await anchorError(tokenRes, "Anchor kimlik doğrulamasını reddetti");
+  if (!tokenRes.ok) throw await anchorError(tokenRes, t("err.authRejected"));
   return ((await tokenRes.json()) as { token: string }).token;
 }
 
@@ -80,7 +83,7 @@ export async function putCustomer(
     headers: { "Content-Type": "application/json", Authorization: `Bearer ${jwt}` },
     body: JSON.stringify({ account: address, ...fields }),
   });
-  if (!res.ok) throw await anchorError(res, "SEP-12 kaydı başarısız");
+  if (!res.ok) throw await anchorError(res, t("err.sep12Failed"));
   return (await res.json()) as { id: string };
 }
 
@@ -95,7 +98,7 @@ export async function getCustomer(jwt: string, address: string): Promise<Sep12Cu
   const url = new URL("/sep12/customer", config.anchorUrl);
   url.searchParams.set("account", address);
   const res = await fetch(url, { headers: { Authorization: `Bearer ${jwt}` } });
-  if (!res.ok) throw await anchorError(res, "SEP-12 durumu okunamadı");
+  if (!res.ok) throw await anchorError(res, t("err.sep12Read"));
   return (await res.json()) as Sep12Customer;
 }
 
@@ -116,6 +119,6 @@ export async function indicativePrice(buyAmountUsdc = "1"): Promise<AnchorPrice>
   url.searchParams.set("sell_delivery_method", "bank_account");
 
   const res = await fetch(url);
-  if (!res.ok) throw await anchorError(res, "Anchor fiyatı alınamadı");
+  if (!res.ok) throw await anchorError(res, t("err.priceFailed"));
   return (await res.json()) as AnchorPrice;
 }

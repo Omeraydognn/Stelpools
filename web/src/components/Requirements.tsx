@@ -2,6 +2,7 @@ import { useState } from "react";
 
 import { addUsdcTrustline, fundWithFriendbot, type AccountState } from "../lib/account";
 import { isTestnet } from "../lib/config";
+import { num, t, useT } from "../lib/i18n";
 import { isUserRejection } from "../lib/wallet";
 import { Button } from "./ui";
 
@@ -24,21 +25,21 @@ export function blockersForBuy(account: AccountState | null, stakeXlm = 10): Blo
   const blockers: Blocker[] = [];
   if (!account.exists) {
     blockers.push({
-      message: "Cüzdan hesabınız bu ağda yok. Testnet'te friendbot ile oluşturabilirsiniz.",
+      message: t("req.noAccount"),
       ...(isTestnet ? { fix: "friendbot" as const } : {}),
     });
     return blockers;
   }
   if (!account.hasUsdcTrustline) {
-    blockers.push({
-      message: "USDC'yi alabilmek için cüzdanınızda USDC trustline olmalı.",
-      fix: "trustline",
-    });
+    blockers.push({ message: t("req.noTrustlineBuy"), fix: "trustline" });
   }
   const needed = stakeXlm + 1.5; // stake + fees + a little reserve headroom
   if (account.xlmSpendable < needed) {
     blockers.push({
-      message: `Teminat ve ücretler için ~${needed.toLocaleString("tr-TR")} XLM gerekiyor, kullanılabilir bakiyeniz ${account.xlmSpendable.toLocaleString("tr-TR", { maximumFractionDigits: 2 })} XLM.`,
+      message: t("req.needXlm", {
+        needed: num(needed, 0, 2),
+        have: num(account.xlmSpendable, 0, 2),
+      }),
       ...(isTestnet ? { fix: "friendbot" as const } : {}),
     });
   }
@@ -53,21 +54,24 @@ export function blockersForProvide(
   const blockers: Blocker[] = [];
   if (!account.exists) {
     blockers.push({
-      message: "Cüzdan hesabınız bu ağda yok. Testnet'te friendbot ile oluşturabilirsiniz.",
+      message: t("req.noAccount"),
       ...(isTestnet ? { fix: "friendbot" as const } : {}),
     });
     return blockers;
   }
   if (!account.hasUsdcTrustline) {
-    blockers.push({ message: "Cüzdanınızda USDC trustline yok.", fix: "trustline" });
+    blockers.push({ message: t("req.noTrustline"), fix: "trustline" });
   } else if (usdcNeeded > 0 && account.usdc < usdcNeeded) {
     blockers.push({
-      message: `Havuza ${usdcNeeded.toLocaleString("tr-TR")} USDC eklemek istiyorsunuz ama bakiyeniz ${account.usdc.toLocaleString("tr-TR", { maximumFractionDigits: 2 })} USDC.`,
+      message: t("req.needUsdc", {
+        needed: num(usdcNeeded, 0, 2),
+        have: num(account.usdc, 0, 2),
+      }),
     });
   }
   if (account.xlmSpendable < 1) {
     blockers.push({
-      message: "İşlem ücretleri için biraz XLM gerekiyor.",
+      message: t("req.needFeeXlm"),
       ...(isTestnet ? { fix: "friendbot" as const } : {}),
     });
   }
@@ -83,6 +87,7 @@ export function BlockerList({
   address: string;
   onFixed: () => void;
 }) {
+  const t = useT();
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -109,7 +114,7 @@ export function BlockerList({
       role="status"
       className="grid gap-2 rounded-[var(--radius)] border border-destructive/40 bg-destructive/10 p-3"
     >
-      <p className="text-xs font-medium">Devam etmeden önce:</p>
+      <p className="text-xs font-medium">{t("req.before")}</p>
       {blockers.map((blocker) => (
         <div key={blocker.message} className="flex flex-wrap items-center gap-2">
           <p className="flex-1 text-xs text-muted-foreground">{blocker.message}</p>
@@ -119,7 +124,7 @@ export function BlockerList({
               loading={busy === blocker.fix}
               onClick={() => void fix(blocker.fix!)}
             >
-              {blocker.fix === "trustline" ? "USDC'yi tanımla" : "Friendbot ile fonla"}
+              {blocker.fix === "trustline" ? t("req.addTrustline") : t("req.fundFriendbot")}
             </Button>
           )}
         </div>

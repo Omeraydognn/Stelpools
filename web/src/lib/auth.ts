@@ -95,7 +95,9 @@ export async function withToken<T>(
     return await fn(await getToken(address));
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    if (!/oturumu geçersiz|401|403/.test(message)) throw err;
+    const expired =
+      (err as { expiredSession?: boolean }).expiredSession === true || /\b401\b|\b403\b/.test(message);
+    if (!expired) throw err;
     forgetToken(address);
     return fn(await getToken(address));
   }

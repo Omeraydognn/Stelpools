@@ -8,6 +8,7 @@ import { xBullModule } from "@creit.tech/stellar-wallets-kit/modules/xbull";
 
 import { forgetToken } from "./auth";
 import { config, isTestnet } from "./config";
+import { t } from "./i18n";
 
 const STORAGE_KEY = "usdc-vault:wallet-id";
 
@@ -29,7 +30,7 @@ StellarWalletsKit.init({
 /** The user closing the wallet modal is a state change, not a failure. */
 export class WalletCancelled extends Error {
   constructor() {
-    super("Cüzdan bağlantısı iptal edildi");
+    super(t("wallet.rejected"));
     this.name = "WalletCancelled";
   }
 }

@@ -10,6 +10,20 @@ React + Vite + TypeScript + Tailwind v4, with the primitives in
 
 **No backend.** The app talks to the anchor, Soroban RPC and Horizon directly.
 
+**Bilingual — English by default.** Every string lives in
+[`src/lib/i18n.ts`](src/lib/i18n.ts) as `{ en, tr }` pairs, so a change to one
+language is impossible to make without seeing the other. `t(key, vars)` works
+outside React too, which matters because the library layer produces the
+user-facing contract and anchor error messages. The toggle is in the header and
+the choice is remembered per browser.
+
+Numbers and dates follow the language: `num()`, `usdc()`, `pct()` and
+`dateTime()` switch between `en-US` and `tr-TR`, so the same balance reads
+`5,642.64` or `5.642,64` and the percent sign moves to the front in Turkish.
+Input parsing does *not* follow the language — `parseAmount()` accepts either
+convention, so switching languages never silently changes what a half-typed
+amount means.
+
 ## Run
 
 ```bash
@@ -23,7 +37,7 @@ npm run dev              # http://localhost:5173
 **Swap — TRY ⇄ USDC.** Straight over the anchor's rails, in two steps,
 because the middle one belongs to the user's bank:
 
-1. *Yatırma talimatı al* — SEP-10, SEP-12, then `POST /sep6/deposit`. The
+1. *Get transfer instructions* — SEP-10, SEP-12, then `POST /sep6/deposit`. The
    anchor answers with its own IBAN and a reference code.
 2. The user sends the lira from their bank to that IBAN with the code in the
    description. The anchor matches the transfer by that code. On testnet

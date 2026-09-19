@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Header } from "./components/Header";
 import { VaultView } from "./components/VaultView";
 import { ErrorState } from "./components/ui";
+import { useT } from "./lib/i18n";
 import type { Session } from "./lib/session";
 import { connectWallet, forgetWallet, isUserRejection, restoreWallet } from "./lib/wallet";
 
@@ -16,6 +17,7 @@ function readHash(): View {
 }
 
 export default function App() {
+  const t = useT();
   const [view, setView] = useState<View>(readHash);
   const [session, setSession] = useState<Session | null>(null);
   const [connecting, setConnecting] = useState(false);
@@ -82,7 +84,7 @@ export default function App() {
         href="#main"
         className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:rounded-[var(--radius)] focus:bg-card focus:px-4 focus:py-2 focus:text-sm"
       >
-        İçeriğe geç
+        {t("app.skipToContent")}
       </a>
 
       <Header
@@ -102,19 +104,12 @@ export default function App() {
         {view.name === "about" && (
           <section aria-labelledby="about-heading" className="grid max-w-2xl gap-3">
             <h2 id="about-heading" className="text-xl font-semibold tracking-tight">
-              Mimari
+              {t("about.heading")}
             </h2>
+            <p className="text-sm text-muted-foreground">{t("about.p1")}</p>
+            <p className="text-sm text-muted-foreground">{t("about.p2")}</p>
             <p className="text-sm text-muted-foreground">
-              Fiat (TRY) tarafının sorumlusu Mock Anchor'dır: tüm TL giriş ve çıkışları onun
-              kurumsal IBAN'ı üzerinden, SEP-6 ile yürür. Kripto (USDC) tarafının sorumlusu
-              Soroban kasasıdır: gelen USDC'yi havuzda toplar ve herkesin payını tutar.
-            </p>
-            <p className="text-sm text-muted-foreground">
-              Cüzdanlar işlemden önce arka planda SEP-10 ve SEP-12'den geçer. Havuzun kuru
-              daima anchor'ın SEP-38 fiyatlamasından beslenir.
-            </p>
-            <p className="text-sm text-muted-foreground">
-              Kasa kontratı:{" "}
+              {t("about.contract")}{" "}
               <a
                 href={`https://stellar.expert/explorer/testnet/contract/${import.meta.env.VITE_VAULT_CONTRACT_ID}`}
                 target="_blank"
@@ -129,10 +124,7 @@ export default function App() {
       </main>
 
       <footer className="mx-auto max-w-5xl px-4 pb-10 text-xs text-muted-foreground sm:px-6">
-        <p>
-          Stellar testnet · USDC kasası Soroban'da, TL giriş/çıkışı ve fiyatlama
-          tr-mock-anchor üzerinden. Gerçek para hareket etmez.
-        </p>
+        <p>{t("footer.note")}</p>
       </footer>
     </div>
   );

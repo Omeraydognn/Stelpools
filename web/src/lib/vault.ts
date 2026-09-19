@@ -12,51 +12,36 @@ import {
 } from "@stellar/stellar-sdk";
 
 import { config } from "./config";
+import { t, type Key } from "./i18n";
 import { signXdr } from "./wallet";
 
 export const server = new rpc.Server(config.rpcUrl);
 const vault = new Contract(config.vaultId);
 
-/** Mirrors contracts/vault/src/errors.rs. */
-const VAULT_ERRORS: Record<number, string> = {
-  2: "Kasa henüz kurulmamış.",
-  3: "Yatırımlar geçici olarak durduruldu. Çekimler açık.",
-  20: "Geçersiz tutar.",
-  21: "İlk yatırım en az 1 USDC olmalı.",
-  22: "Bu tutar pay üretmeyecek kadar küçük.",
-  23: "Bu kadar payınız yok.",
-  24: "Bu kadar pay için ödenecek tutar sıfıra yuvarlanıyor.",
-  30: "Geçersiz komisyon oranı.",
-  31: "Kasa mevduat tavanına ulaştı.",
-  50: "Yetki (allowance) yetersiz.",
-  52: "Pay bakiyeniz yetersiz.",
-  60: "Kasa şu an önden ödeme yapmıyor.",
-  61: "Tutar tek seferlik avans limitinin üstünde.",
-  62: "Kasanın toplam avans kapasitesi dolu.",
-  63: "Bu hesabın kapatılmamış bir avansı var.",
-  64: "Açık bir avans yok.",
-  65: "Kasada şu an yeterli likit USDC yok.",
-  40: "Hesaplama hatası.",
-};
+/** Mirrors contracts/vault/src/errors.rs; the text lives in i18n as `err.<code>`. */
+const VAULT_ERROR_CODES = new Set([2, 3, 20, 21, 22, 23, 24, 30, 31, 40, 50, 52, 60, 61, 62, 63, 64, 65]);
 
-const STELLAR_ERRORS: Record<string, string> = {
-  tx_insufficient_balance: "Cüzdanınızda işlem ücreti için yeterli XLM yok.",
-  op_underfunded: "USDC bakiyeniz bu tutar için yetersiz.",
-  op_no_trust: "USDC trustline'ınız yok.",
-  tx_bad_seq: "Cüzdan sırası eşleşmedi. Sayfayı yenileyin.",
-  tx_too_late: "İşlem zaman aşımına uğradı.",
-};
+const STELLAR_ERROR_CODES = [
+  "tx_insufficient_balance",
+  "op_underfunded",
+  "op_no_trust",
+  "tx_bad_seq",
+  "tx_too_late",
+] as const;
+
+function describe(code: number | null, detail: string): string {
+  if (code !== null) {
+    return VAULT_ERROR_CODES.has(code) ? t(`err.${code}` as Key) : t("err.unknownCode", { code });
+  }
+  const hit = STELLAR_ERROR_CODES.find((c) => detail.includes(c));
+  return hit ? t(`err.${hit}` as Key) : t("err.failed", { detail });
+}
 
 export class VaultError extends Error {
   readonly code: number | null;
 
   constructor(code: number | null, detail: string) {
-    const known =
-      code !== null
-        ? (VAULT_ERRORS[code] ?? `Kasa hatası #${code}`)
-        : (Object.entries(STELLAR_ERRORS).find(([c]) => detail.includes(c))?.[1] ??
-          `İşlem başarısız: ${detail}`);
-    super(known);
+    super(describe(code, detail));
     this.name = "VaultError";
     this.code = code;
   }
@@ -130,7 +115,7 @@ async function invoke(
     }
     await new Promise((r) => setTimeout(r, 1_000));
   }
-  throw new Error("İşlem 40 saniyede onaylanmadı.");
+  throw new Error(t("err.notConfirmed"));
 }
 
 export interface VaultState {

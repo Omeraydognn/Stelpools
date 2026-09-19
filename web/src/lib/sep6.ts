@@ -5,6 +5,7 @@ import { putCustomer } from "./anchor";
 import { getToken, peekToken, withToken } from "./auth";
 import { config } from "./config";
 import { signXdr } from "./wallet";
+import { t } from "./i18n";
 
 export type RampStage =
   | "authenticating"
@@ -52,7 +53,7 @@ async function anchorFetch<T>(path: string, jwt: string, init?: RequestInit): Pr
   });
   if (!res.ok) {
     const body = (await res.json().catch(() => ({}))) as { error?: string };
-    throw new Error(body.error ?? `Anchor ${res.status} döndürdü`);
+    throw new Error(body.error ?? t("err.anchorStatus", { status: res.status }));
   }
   return (await res.json()) as T;
 }
@@ -85,13 +86,11 @@ async function waitForCompletion(
 
     if (transaction.status === "completed") return transaction;
     if (transaction.status.startsWith("error")) {
-      throw new Error(transaction.message ?? "Anchor işlemi başarısız oldu.");
+      throw new Error(transaction.message ?? t("err.anchorFailed"));
     }
     await new Promise((r) => setTimeout(r, POLL_MS));
   }
-  throw new Error(
-    "Anchor 10 dakikada tamamlamadı. İşlem iptal olmadı — anchor tarafında beklemeye devam ediyor.",
-  );
+  throw new Error(t("err.anchorTimeout"));
 }
 
 /**
@@ -137,7 +136,7 @@ export async function openDeposit(
       `/sep6/deposit?${params}`,
       token,
     );
-    if (!deposit.id) throw new Error("Anchor bir işlem numarası döndürmedi.");
+    if (!deposit.id) throw new Error(t("err.anchorNoId"));
 
     const field = (name: string) => deposit.instructions?.[name]?.value ?? "";
     return {
@@ -238,7 +237,7 @@ export async function withdrawToIban(
 
   const destination = withdrawal.account_id ?? withdrawal.withdraw_anchor_account;
   const memo = withdrawal.memo ?? withdrawal.withdraw_memo;
-  if (!destination || !memo) throw new Error("Anchor hazine adresi veya memo döndürmedi.");
+  if (!destination || !memo) throw new Error(t("err.anchorNoTreasury"));
 
   onProgress?.("transferring");
   const account = await horizon.loadAccount(address);

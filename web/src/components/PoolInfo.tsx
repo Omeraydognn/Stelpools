@@ -1,13 +1,9 @@
 import { config } from "../lib/config";
 import { truncateAddress } from "../lib/format";
+import { num, pct, usdc as fmtUsdc, useT } from "../lib/i18n";
 import type { VaultTotals } from "../lib/history";
 import type { VaultState } from "../lib/vault";
 import { Card } from "./ui";
-
-const tl = (n: number, digits = 2) =>
-  n.toLocaleString("tr-TR", { minimumFractionDigits: digits, maximumFractionDigits: digits });
-
-const usdc = (stroops: bigint, digits = 2) => tl(Number(stroops) / 1e7, digits);
 
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -56,10 +52,11 @@ export function PoolInfo({
   totals: VaultTotals | null;
   windowHours: number | null;
 }) {
+  const t = useT();
   const windowLabel =
     windowHours === null
-      ? "izlenen pencerede"
-      : `son ${windowHours < 1 ? "<1" : Math.round(windowHours)} saatte`;
+      ? t("pi.windowTracked")
+      : t("pi.windowHours", { h: windowHours < 1 ? "<1" : Math.round(windowHours) });
   const total = Number(vault.totalAssets) / 1e7;
   const advanced = Number(vault.totalAdvanced) / 1e7;
   const liquid = Number(vault.liquidAssets) / 1e7;
@@ -70,164 +67,149 @@ export function PoolInfo({
     <Card className="grid gap-5">
       <div className="grid gap-4 sm:grid-cols-2">
         <div>
-          <p className="text-xs text-muted-foreground">Likidite kullanımı</p>
-          <p className="tnum text-2xl font-semibold tracking-tight">
-            {tl(utilization)}
-            <span className="ml-1 text-sm font-medium text-muted-foreground">%</span>
-          </p>
+          <p className="text-xs text-muted-foreground">{t("pi.utilization")}</p>
+          <p className="tnum text-2xl font-semibold tracking-tight">{pct(utilization)}</p>
           <p className="mt-1 text-xs text-muted-foreground">
-            <span className="tnum">{usdc(vault.totalAdvanced)}</span> USDC önden verilmiş,{" "}
-            <span className="tnum">{usdc(vault.liquidAssets)}</span> USDC hazırda
+            {t("pi.utilizationNote", {
+              advanced: fmtUsdc(vault.totalAdvanced),
+              liquid: fmtUsdc(vault.liquidAssets),
+            })}
           </p>
         </div>
         <div>
-          <p className="text-xs text-muted-foreground">Stake edilmiş pay</p>
+          <p className="text-xs text-muted-foreground">{t("pi.staked")}</p>
           <p className="text-2xl font-semibold tracking-tight text-muted-foreground">—</p>
-          <p className="mt-1 text-xs text-muted-foreground">
-            Stake mekanizması yok; getiri doğrudan pay fiyatına yazılır.
-          </p>
+          <p className="mt-1 text-xs text-muted-foreground">{t("pi.stakedNote")}</p>
         </div>
       </div>
 
       <section>
-        <h4 className="mb-2 text-sm font-medium">Bileşim</h4>
+        <h4 className="mb-2 text-sm font-medium">{t("pi.composition")}</h4>
         <div className="grid grid-cols-[1fr_auto_auto] gap-x-4 text-xs">
-          <span className="text-muted-foreground">Varlık</span>
-          <span className="text-right text-muted-foreground">Oran</span>
-          <span className="text-right text-muted-foreground">Tutar</span>
+          <span className="text-muted-foreground">{t("pi.asset")}</span>
+          <span className="text-right text-muted-foreground">{t("pi.ratio")}</span>
+          <span className="text-right text-muted-foreground">{t("pi.amount")}</span>
 
           <span className="mt-1 flex items-baseline gap-2">
             USDC <Explorer id={vault.usdc} />
           </span>
-          <span className="tnum mt-1 text-right">%100</span>
-          <span className="tnum mt-1 text-right">{usdc(vault.totalAssets)}</span>
+          <span className="tnum mt-1 text-right">{pct(100, 0)}</span>
+          <span className="tnum mt-1 text-right">{fmtUsdc(vault.totalAssets)}</span>
 
-          <span className="pl-3 text-muted-foreground">· hazırda</span>
+          <span className="pl-3 text-muted-foreground">{t("pi.onHand")}</span>
           <span className="tnum text-right text-muted-foreground">
-            %{total > 0 ? tl((liquid / total) * 100) : "0,00"}
+            {pct(total > 0 ? (liquid / total) * 100 : 0)}
           </span>
           <span className="tnum text-right text-muted-foreground">
-            {usdc(vault.liquidAssets)}
+            {fmtUsdc(vault.liquidAssets)}
           </span>
 
-          <span className="pl-3 text-muted-foreground">· önden verilmiş</span>
-          <span className="tnum text-right text-muted-foreground">%{tl(utilization)}</span>
+          <span className="pl-3 text-muted-foreground">{t("pi.fronted")}</span>
+          <span className="tnum text-right text-muted-foreground">{pct(utilization)}</span>
           <span className="tnum text-right text-muted-foreground">
-            {usdc(vault.totalAdvanced)}
+            {fmtUsdc(vault.totalAdvanced)}
           </span>
         </div>
         <div className="mt-2 flex justify-between border-t border-border pt-2 text-xs">
-          <span className="text-muted-foreground">Toplam</span>
+          <span className="text-muted-foreground">{t("pi.total")}</span>
           <span className="tnum">
-            {usdc(vault.totalAssets)} USDC
-            {rate ? ` · ${tl(total * rate)} TRY` : ""}
+            {fmtUsdc(vault.totalAssets)} USDC
+            {rate ? ` · ${num(total * rate)} TRY` : ""}
           </span>
         </div>
       </section>
 
       {totals && (
         <section>
-          <h4 className="mb-2 text-sm font-medium">Hacim ve kazanç</h4>
-          <Row label={`İşlem hacmi (${windowLabel})`}>{usdc(totals.volume)} USDC</Row>
-          <Row label="· yatırma / çekme">
-            {usdc(totals.depositVolume)} / {usdc(totals.withdrawVolume)}
+          <h4 className="mb-2 text-sm font-medium">{t("pi.volumeEarnings")}</h4>
+          <Row label={t("pi.volume", { window: windowLabel })}>
+            {fmtUsdc(totals.volume)} USDC
           </Row>
-          <Row label="Kazanılan çıkış komisyonu">{usdc(totals.withdrawFees, 4)} USDC</Row>
-          <Row label="Kazanılan avans komisyonu">{usdc(totals.advanceFees, 4)} USDC</Row>
-          <Row label="Açılan avans">{totals.advancesOpened}</Row>
+          <Row label={t("pi.depWit")}>
+            {fmtUsdc(totals.depositVolume)} / {fmtUsdc(totals.withdrawVolume)}
+          </Row>
+          <Row label={t("pi.withdrawFeesEarned")}>{fmtUsdc(totals.withdrawFees, 4)} USDC</Row>
+          <Row label={t("pi.advanceFeesEarned")}>{fmtUsdc(totals.advanceFees, 4)} USDC</Row>
+          <Row label={t("pi.advancesOpened")}>{totals.advancesOpened}</Row>
           {totals.writtenOff > 0n && (
-            <Row label="Batık yazılan">
-              <span className="text-destructive">{usdc(totals.writtenOff)} USDC</span>
+            <Row label={t("pi.writtenOff")}>
+              <span className="text-destructive">{fmtUsdc(totals.writtenOff)} USDC</span>
             </Row>
           )}
         </section>
       )}
 
       <section>
-        <h4 className="mb-2 text-sm font-medium">Getiri kaynakları</h4>
-        <Row label="Ölçülen yıllık getiri">
+        <h4 className="mb-2 text-sm font-medium">{t("pi.yieldSources")}</h4>
+        <Row label={t("pi.measuredApr")}>
           {apr === null ? (
-            <span className="text-muted-foreground">yeterli geçmiş yok</span>
+            <span className="text-muted-foreground">{t("pi.notEnoughHistory")}</span>
           ) : (
-            `%${tl(apr)}`
+            pct(apr)
           )}
         </Row>
-        <Row label="Çıkış komisyonu">%{tl(vault.withdrawFeeBps / 100, 2)}</Row>
-        <Row label="Avans komisyonu">%{tl(vault.advanceFeeBps / 100, 2)}</Row>
-        <Row label="Dağıtım">pay basılmadan gelen USDC → pay fiyatı</Row>
+        <Row label={t("pool.withdrawFee")}>{pct(vault.withdrawFeeBps / 100)}</Row>
+        <Row label={t("pi.advanceFee")}>{pct(vault.advanceFeeBps / 100)}</Row>
+        <Row label={t("pi.distribution")}>{t("pi.distributionValue")}</Row>
       </section>
 
       <section>
-        <h4 className="mb-2 text-sm font-medium">Kontratlar</h4>
-        <Row label="Kasa / pay token'ı">
+        <h4 className="mb-2 text-sm font-medium">{t("pi.contracts")}</h4>
+        <Row label={t("pi.vaultShareToken")}>
           <Explorer id={config.vaultId} />
         </Row>
-        <Row label="USDC (SAC)">
+        <Row label={t("pi.usdcSac")}>
           <Explorer id={vault.usdc} />
         </Row>
-        <Row label="Yönetici">
+        <Row label={t("pi.admin")}>
           <Explorer id={vault.admin} />
         </Row>
-        <Row label="Avans relay'i">
+        <Row label={t("pi.relay")}>
           <Explorer id={vault.relay} />
         </Row>
-        <Row label="Fiyat kaynağı">anchor SEP-38 · Reflector</Row>
-        <Row label="Ağ">Stellar testnet</Row>
+        <Row label={t("pi.priceSource")}>{t("pi.priceSourceValue")}</Row>
+        <Row label={t("pi.network")}>{t("pi.networkValue")}</Row>
       </section>
 
       <section>
-        <h4 className="mb-2 text-sm font-medium">Parametreler</h4>
-        <Row label="Havuz tipi">tek varlıklı, pay muhasebeli kasa</Row>
-        <Row label="Pay token'ı">
-          {vault.symbol} · SEP-41 · 7 hane
+        <h4 className="mb-2 text-sm font-medium">{t("pi.parameters")}</h4>
+        <Row label={t("pi.poolType")}>{t("pi.poolTypeValue")}</Row>
+        <Row label={t("pi.shareToken")}>
+          {vault.symbol} · SEP-41 · {t("pi.decimals")}
         </Row>
-        <Row label="Pay fiyatı">{tl(Number(vault.sharePrice) / 1e7, 7)} USDC</Row>
-        <Row label="Dolaşımdaki pay">{usdc(vault.totalShares, 4)}</Row>
-        <Row label="Mevduat tavanı">
-          {vault.depositCapRaw > 0n ? `${usdc(vault.depositCapRaw)} USDC` : "sınırsız"}
+        <Row label={t("pool.sharePrice")}>{fmtUsdc(vault.sharePrice, 7)} USDC</Row>
+        <Row label={t("pi.circulating")}>{fmtUsdc(vault.totalShares, 4)}</Row>
+        <Row label={t("pi.depositCap")}>
+          {vault.depositCapRaw > 0n ? `${fmtUsdc(vault.depositCapRaw)} USDC` : t("pi.unlimited")}
         </Row>
-        <Row label="Tek avans limiti">
-          {vault.maxAdvance > 0n ? `${usdc(vault.maxAdvance)} USDC` : "kapalı"}
+        <Row label={t("pi.maxAdvance")}>
+          {vault.maxAdvance > 0n ? `${fmtUsdc(vault.maxAdvance)} USDC` : t("pi.off")}
         </Row>
-        <Row label="Toplam avans tavanı">
-          {vault.advanceCap > 0n ? `${usdc(vault.advanceCap)} USDC` : "kapalı"}
+        <Row label={t("pi.advanceCap")}>
+          {vault.advanceCap > 0n ? `${fmtUsdc(vault.advanceCap)} USDC` : t("pi.off")}
         </Row>
-        <Row label="Yatırımlar">{vault.paused ? "durduruldu" : "açık"}</Row>
-        <Row label="Çekimler">her koşulda açık</Row>
+        <Row label={t("pi.deposits")}>{vault.paused ? t("pi.paused") : t("pi.open")}</Row>
+        <Row label={t("pi.withdrawals")}>{t("pi.alwaysOpen")}</Row>
       </section>
 
       <section>
-        <h4 className="mb-2 text-sm font-medium">Riskler</h4>
+        <h4 className="mb-2 text-sm font-medium">{t("pi.risks")}</h4>
         <ul className="grid list-disc gap-1.5 pl-4 text-xs text-muted-foreground">
-          <li>
-            <span className="text-foreground">Avanslar teminatsız.</span> Kasa, anchor teslim
-            etmeden önce ödeme yapar ve geri ödemeyi zincir üzerinde zorlayamaz. Batık bir
-            avans <span className="tnum">write_off</span> ile yazılır ve zarar doğrudan pay
-            fiyatına düşer. Limitler bu yüzden küçük tutuluyor.
-          </li>
-          <li>
-            <span className="text-foreground">Relay güvenilen bir bileşen.</span> Avansı
-            açmaya yetkili tek taraf o. Havuzun parasını başka bir yere taşıyamaz, ama kimin
-            avans alacağına o karar verir.
-          </li>
-          <li>
-            <span className="text-foreground">Yönetici komisyonu ve tavanı değiştirebilir</span>{" "}
-            (çıkış komisyonu en fazla %5) ve yatırımları durdurabilir. Çekimleri
-            durduramaz.
-          </li>
-          <li>
-            <span className="text-foreground">Likidite kullanımı yüksekken çekim beklemeli
-            olabilir.</span> Çekim yalnızca hazırdaki USDC'den ödenir; avanslar geri gelince
-            kalan da çekilebilir.
-          </li>
-          <li>
-            <span className="text-foreground">Fiat tarafı anchor'a bağlı.</span> TL girişi ve
-            çıkışı anchor'ın rayları üzerinden yürür; anchor duraksarsa TL bacağı duraksar.
-          </li>
-          <li>
-            <span className="text-foreground">Testnet.</span> Gerçek para hareket etmiyor,
-            kontrat denetlenmedi.
-          </li>
+          {(
+            [
+              ["pi.risk1Head", "pi.risk1Body"],
+              ["pi.risk2Head", "pi.risk2Body"],
+              ["pi.risk3Head", "pi.risk3Body"],
+              ["pi.risk4Head", "pi.risk4Body"],
+              ["pi.risk5Head", "pi.risk5Body"],
+              ["pi.risk6Head", "pi.risk6Body"],
+            ] as const
+          ).map(([head, body]) => (
+            <li key={head}>
+              <span className="text-foreground">{t(head)}</span>
+              {t(body)}
+            </li>
+          ))}
         </ul>
       </section>
     </Card>

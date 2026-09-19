@@ -1,4 +1,5 @@
 import type { PricePoint, VaultHistory } from "../lib/history";
+import { dateTime, num, t } from "../lib/i18n";
 
 const WIDTH = 520;
 const HEIGHT = 120;
@@ -16,10 +17,7 @@ export function PriceChart({ history }: { history: VaultHistory }) {
   if (points.length < 2) {
     return (
       <div className="grid h-[120px] place-items-center rounded-[var(--radius)] border border-dashed border-border">
-        <p className="px-4 text-center text-xs text-muted-foreground">
-          Grafik için en az iki hareket gerekiyor. Kasaya ilk yatırımlar yapıldıkça pay fiyatı
-          burada çizilir.
-        </p>
+        <p className="px-4 text-center text-xs text-muted-foreground">{t("chart.needMore")}</p>
       </div>
     );
   }
@@ -35,8 +33,7 @@ export function PriceChart({ history }: { history: VaultHistory }) {
 
   const line = points.map((_, i) => `${i === 0 ? "M" : "L"}${x(i)},${y(prices[i]!)}`).join(" ");
   const area = `${line} L${x(points.length - 1)},${HEIGHT} L${x(0)},${HEIGHT} Z`;
-  const label = (p: PricePoint) =>
-    `${p.at.toLocaleString("tr-TR", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}`;
+  const label = (p: PricePoint) => dateTime(p.at);
 
   return (
     <figure className="grid gap-2">
@@ -44,7 +41,10 @@ export function PriceChart({ history }: { history: VaultHistory }) {
         viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
         className="h-[120px] w-full"
         role="img"
-        aria-label={`Pay fiyatı ${prices[0]!.toFixed(4)} USDC'den ${prices.at(-1)!.toFixed(4)} USDC'ye`}
+        aria-label={t("chart.alt", {
+          from: num(prices[0]!, 4),
+          to: num(prices.at(-1)!, 4),
+        })}
       >
         <path d={area} fill="var(--primary)" opacity="0.12" />
         <path
@@ -57,16 +57,18 @@ export function PriceChart({ history }: { history: VaultHistory }) {
         />
         {points.map((p, i) => (
           <circle key={`${p.ledger}-${i}`} cx={x(i)} cy={y(prices[i]!)} r="2.5" fill="var(--primary)">
-            <title>{`${label(p)} · ${prices[i]!.toFixed(6)} USDC/pay · ${p.event}`}</title>
+            <title>{`${label(p)} · ${num(prices[i]!, 6)} ${t("chart.perShare")} · ${p.event}`}</title>
           </circle>
         ))}
       </svg>
       <figcaption className="flex flex-wrap justify-between gap-2 text-xs text-muted-foreground">
         <span className="tnum">{label(points[0]!)}</span>
         <span>
-          {points.length} hareket
+          {t("chart.events", { n: points.length })}
           {history.windowHours !== null &&
-            ` · son ${history.windowHours < 1 ? "<1" : Math.round(history.windowHours)} saat`}
+            t("chart.window", {
+              h: history.windowHours < 1 ? "<1" : Math.round(history.windowHours),
+            })}
         </span>
         <span className="tnum">{label(points.at(-1)!)}</span>
       </figcaption>

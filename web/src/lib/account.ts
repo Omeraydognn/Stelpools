@@ -2,6 +2,7 @@ import { Asset, Horizon, Operation, TransactionBuilder } from "@stellar/stellar-
 
 import { config } from "./config";
 import { signXdr } from "./wallet";
+import { t } from "./i18n";
 
 export const horizon = new Horizon.Server(config.horizonUrl);
 export const USDC = new Asset("USDC", config.usdcIssuer);
@@ -82,5 +83,5 @@ export async function addUsdcTrustline(address: string): Promise<string> {
 /** Testnet only: ask friendbot for XLM. */
 export async function fundWithFriendbot(address: string): Promise<void> {
   const res = await fetch(`https://friendbot.stellar.org?addr=${encodeURIComponent(address)}`);
-  if (!res.ok) throw new Error(`Friendbot hesabı fonlayamadı (${res.status})`);
+  if (!res.ok) throw new Error(t("err.friendbot", { status: res.status }));
 }

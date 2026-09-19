@@ -1,6 +1,7 @@
 import type { ButtonHTMLAttributes, InputHTMLAttributes, ReactNode } from "react";
 
 import { truncateAddress } from "../lib/format";
+import { useT } from "../lib/i18n";
 
 const focusRing =
   "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background";
@@ -84,38 +85,18 @@ export function Amount({
 }
 
 export function AddressChip({ address, label }: { address: string; label?: string }) {
+  const t = useT();
   const copy = () => void navigator.clipboard?.writeText(address);
   return (
     <button
       type="button"
       onClick={copy}
       title={address}
-      aria-label={`${label ? `${label}: ` : ""}${address} — kopyalamak için tıklayın`}
+      aria-label={`${label ? `${label}: ` : ""}${address} — ${t("wallet.copyHint")}`}
       className={`tnum inline-flex min-h-10 items-center rounded-[var(--radius)] px-2 py-1 text-xs text-muted-foreground hover:bg-accent hover:text-foreground ${focusRing}`}
     >
       {truncateAddress(address)}
     </button>
-  );
-}
-
-const STATUS_COPY: Record<string, { label: string; tone: string }> = {
-  Open: { label: "Açık", tone: "bg-primary/15 text-primary" },
-  Locked: { label: "Kilitli · ödeme bekleniyor", tone: "bg-primary/15 text-primary" },
-  Paid: { label: "Ödendi · doğrulanıyor", tone: "bg-primary/15 text-primary" },
-  Disputed: { label: "İhtilaflı", tone: "bg-destructive/15 text-destructive" },
-  Completed: { label: "Tamamlandı", tone: "bg-secondary text-secondary-foreground" },
-  Cancelled: { label: "İptal", tone: "bg-secondary text-muted-foreground" },
-};
-
-/** Status never relies on colour alone — the label always says it too. */
-export function StatusPill({ status }: { status: string }) {
-  const meta = STATUS_COPY[status] ?? { label: status, tone: "bg-secondary text-foreground" };
-  return (
-    <span
-      className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium ${meta.tone}`}
-    >
-      {meta.label}
-    </span>
   );
 }
 
@@ -147,18 +128,19 @@ export function EmptyState({
 }
 
 export function ErrorState({ error, onRetry }: { error: Error; onRetry?: () => void }) {
+  const t = useT();
   return (
     <div
       role="alert"
       className="flex flex-col items-start gap-3 rounded-[var(--radius)] border border-destructive/40 bg-destructive/10 p-4"
     >
       <div>
-        <p className="text-sm font-medium">Bir şeyler ters gitti</p>
+        <p className="text-sm font-medium">{t("ui.wentWrong")}</p>
         <p className="mt-1 text-xs text-muted-foreground">{error.message}</p>
       </div>
       {onRetry && (
         <Button variant="ghost" onClick={onRetry}>
-          Tekrar dene
+          {t("ui.retry")}
         </Button>
       )}
     </div>

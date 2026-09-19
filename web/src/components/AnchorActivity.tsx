@@ -1,35 +1,17 @@
 import { useState } from "react";
 
 import { addUsdcTrustline } from "../lib/account";
+import { dateTime, dict, useT, type Key } from "../lib/i18n";
 import { listTransactions, type Sep6Transaction } from "../lib/sep6";
 import { useAsync } from "../lib/useAsync";
 import { isUserRejection } from "../lib/wallet";
 import { Button, Card, ErrorState, Skeleton } from "./ui";
 
-const STATUS_COPY: Record<string, string> = {
-  completed: "Tamamlandı",
-  pending_anchor: "Anchor işliyor",
-  pending_stellar: "Ağa gönderiliyor",
-  pending_trust: "USDC trustline bekleniyor",
-  pending_user_transfer_start: "Paranız bekleniyor",
-  pending_user_transfer_complete: "Transfer alındı",
-  incomplete: "Tamamlanmadı",
-  error: "Hata",
-  refunded: "İade edildi",
-  expired: "Süresi doldu",
-};
-
 const DONE = new Set(["completed", "refunded", "expired", "error"]);
 
 function when(txn: Sep6Transaction): string {
   const iso = txn.completed_at ?? txn.started_at;
-  if (!iso) return "";
-  return new Date(iso).toLocaleString("tr-TR", {
-    day: "numeric",
-    month: "short",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+  return iso ? dateTime(new Date(iso)) : "";
 }
 
 /**
@@ -41,6 +23,7 @@ function when(txn: Sep6Transaction): string {
  * refresh away.
  */
 export function AnchorActivity({ address }: { address: string }) {
+  const t = useT();
   // `false` keeps this off the wallet: on a timer it reads only a token that
   // already exists, and returns null when there is none.
   const txns = useAsync(() => listTransactions(address, false), [address], 30_000);
@@ -54,10 +37,10 @@ export function AnchorActivity({ address }: { address: string }) {
   return (
     <Card className="grid gap-3">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h3 className="text-sm font-medium">Anchor işlemleriniz</h3>
+        <h3 className="text-sm font-medium">{t("aa.title")}</h3>
         {!needsAuth && (
           <Button variant="ghost" onClick={txns.reload} loading={txns.loading && !txns.initial}>
-            Yenile
+            {t("ui.refresh")}
           </Button>
         )}
       </div>
@@ -67,10 +50,7 @@ export function AnchorActivity({ address }: { address: string }) {
 
       {needsAuth && (
         <div className="grid gap-2">
-          <p className="text-xs text-muted-foreground">
-            Anchor kayıtlarınızı okumak için bir kez cüzdan imzası gerekiyor. İmza yalnızca
-            kimliğinizi kanıtlar; hiçbir para hareket etmez.
-          </p>
+          <p className="text-xs text-muted-foreground">{t("aa.needAuth")}</p>
           <Button
             variant="ghost"
             className="justify-self-start"
@@ -90,16 +70,14 @@ export function AnchorActivity({ address }: { address: string }) {
               }
             }}
           >
-            Anchor işlemlerimi göster
+            {t("aa.show")}
           </Button>
           {authError && <p className="text-xs text-destructive">{authError}</p>}
         </div>
       )}
 
       {txns.data && items.length === 0 && (
-        <p className="text-xs text-muted-foreground">
-          Anchor üzerinden henüz bir TL giriş/çıkışınız yok.
-        </p>
+        <p className="text-xs text-muted-foreground">{t("aa.empty")}</p>
       )}
 
       {items.length > 0 && (
@@ -118,11 +96,15 @@ export function AnchorActivity({ address }: { address: string }) {
                   {txn.amount_in ?? "—"} → {txn.amount_out ?? "—"}
                 </span>
                 <span className={inFlight ? "text-primary" : "text-muted-foreground"}>
-                  {STATUS_COPY[txn.status] ?? txn.status}
+                  {(`aa.st.${txn.status}` as Key) in dict
+                    ? t(`aa.st.${txn.status}` as Key)
+                    : txn.status}
                 </span>
                 <span className="tnum ml-auto text-muted-foreground">{when(txn)}</span>
                 {txn.message && (
-                  <span className="w-full text-muted-foreground">Anchor: {txn.message}</span>
+                  <span className="w-full text-muted-foreground">
+                    {t("ramp.anchorSays", { message: txn.message })}
+                  </span>
                 )}
               </li>
             );
@@ -132,10 +114,7 @@ export function AnchorActivity({ address }: { address: string }) {
 
       {stuck && (
         <div className="grid gap-2 rounded-[var(--radius)] border border-destructive/40 bg-destructive/10 p-3 text-xs">
-          <p>
-            Bir işleminiz USDC trustline bekliyor. Açtığınız anda anchor kaldığı yerden devam
-            eder — para kaybolmadı.
-          </p>
+          <p>{t("aa.stuck")}</p>
           <Button
             variant="ghost"
             className="justify-self-start"
@@ -144,7 +123,7 @@ export function AnchorActivity({ address }: { address: string }) {
               txns.reload();
             }}
           >
-            USDC trustline'ı aç
+            {t("aa.openTrustline")}
           </Button>
         </div>
       )}

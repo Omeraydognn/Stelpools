@@ -1,4 +1,5 @@
 import { config } from "./config";
+import { t } from "./i18n";
 
 export interface AdvanceResult {
   account: string;
@@ -14,11 +15,11 @@ async function call<T>(path: string, init?: RequestInit): Promise<T> {
   try {
     res = await fetch(`${config.relayUrl}${path}`, init);
   } catch {
-    throw new Error("Anında ödeme servisine ulaşılamıyor.");
+    throw new Error(t("err.relayUnreachable"));
   }
   if (!res.ok) {
     const body = (await res.json().catch(() => ({}))) as { message?: string; error?: string };
-    throw new Error(body.message ?? body.error ?? `Relay hatası ${res.status}`);
+    throw new Error(body.message ?? body.error ?? t("err.relayStatus", { status: res.status }));
   }
   return (await res.json()) as T;
 }

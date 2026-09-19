@@ -1,35 +1,57 @@
-/** 7-decimal stroops → a human USDC string. */
+import { locale, num, t } from "./i18n";
+
+/** 7-decimal stroops → a human USDC string in the active language. */
 export function formatUsdc(stroops: string | bigint, decimals = 2): string {
-  const value = Number(BigInt(stroops)) / 1e7;
-  return value.toLocaleString("tr-TR", {
-    minimumFractionDigits: decimals,
-    maximumFractionDigits: decimals,
-  });
+  return num(Number(BigInt(stroops)) / 1e7, decimals);
 }
 
-/** Kuruş → "1.000,00" in Turkish convention. */
+/** Minor units → a money string in the active language. */
 export function formatTry(kurus: string | bigint | number): string {
-  const value = Number(kurus) / 100;
-  return value.toLocaleString("tr-TR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return num(Number(kurus) / 100, 2);
 }
 
-/** "1.000,00" or "1000.50" typed by a human → kuruş. */
-export function parseTryToKurus(input: string): bigint | null {
-  const cleaned = input.trim().replace(/\s/g, "");
-  if (!cleaned) return null;
-  const normalized = /,\d{1,2}$/.test(cleaned)
-    ? cleaned.replace(/\./g, "").replace(",", ".")
-    : cleaned.replace(/,/g, "");
+/**
+ * A number a human typed, in either convention.
+ *
+ * "1.000", "1,000", "1 000" and "1000" all mean a thousand depending on
+ * where you are, and the language toggle must not silently change what a
+ * half-typed amount means. The rule: the last separator is the decimal
+ * point, unless it is the only one and exactly three digits follow it, in
+ * which case it groups thousands.
+ */
+export function parseAmount(input: string): number {
+  const s = input.trim().replace(/[\s ']/g, "");
+  if (!s) return 0;
+  const separators = s.match(/[.,]/g) ?? [];
+  let normalized = s;
+  if (separators.length > 0) {
+    const cut = Math.max(s.lastIndexOf(","), s.lastIndexOf("."));
+    const whole = s.slice(0, cut).replace(/[.,]/g, "");
+    const fraction = s.slice(cut + 1);
+    normalized =
+      separators.length === 1 && fraction.length === 3 ? whole + fraction : `${whole}.${fraction}`;
+  }
   const value = Number(normalized);
+  return Number.isFinite(value) ? value : 0;
+}
+
+/** A typed amount → minor units. */
+export function parseTryToKurus(input: string): bigint | null {
+  const value = parseAmount(input);
   if (!Number.isFinite(value) || value < 0) return null;
   return BigInt(Math.round(value * 100));
 }
 
-/** "20,5" or "20.5" → USDC stroops. */
+/** A typed amount → USDC stroops. */
 export function parseUsdcToStroops(input: string): bigint | null {
-  const value = Number(input.trim().replace(",", "."));
+  const value = parseAmount(input);
   if (!Number.isFinite(value) || value <= 0) return null;
   return BigInt(Math.round(value * 1e7));
+}
+
+/** A thousand, written the way the active language writes it. */
+export function defaultTryAmount(): string {
+  return (1000).toLocaleString(locale(), { maximumFractionDigits: 0 });
 }
 
 export function truncateAddress(address: string, chars = 4): string {
@@ -54,12 +76,9 @@ export function isValidIban(iban: string): boolean {
 export function ibanProblem(iban: string): string | null {
   const value = normalizeIban(iban);
   if (!value) return null;
-  if (!value.startsWith("TR")) return "IBAN TR ile başlamalı.";
+  if (!value.startsWith("TR")) return t("iban.mustStartTr");
   const digits = value.slice(2);
-  if (!/^\d*$/.test(digits)) return "IBAN, TR'den sonra yalnızca rakam içermeli.";
-  if (digits.length !== 24) {
-    return `TR'den sonra 24 rakam olmalı, ${digits.length} girdiniz.`;
-  }
+  if (!/^\d*$/.test(digits)) return t("iban.digitsOnly");
+  if (digits.length !== 24) return t("iban.wrongLength", { n: digits.length });
   return null;
 }
-

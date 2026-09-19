@@ -1,7 +1,15 @@
 import { useState } from "react";
 
 import type { AccountState } from "../lib/account";
-import { ibanProblem, isValidIban, normalizeIban, parseUsdcToStroops } from "../lib/format";
+import {
+  defaultTryAmount,
+  ibanProblem,
+  isValidIban,
+  normalizeIban,
+  parseAmount,
+  parseUsdcToStroops,
+} from "../lib/format";
+import { num, useT, type Key } from "../lib/i18n";
 import { relayEnabled, requestAdvance } from "../lib/relay";
 import {
   awaitDeposit,
@@ -17,16 +25,14 @@ import { DepositInstructionsCard } from "./DepositInstructionsCard";
 import { RampStatus } from "./RampStatus";
 import { Amount, Button, ErrorState, Field } from "./ui";
 
-const tl = (n: number) =>
-  n.toLocaleString("tr-TR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-
-const BUTTON_COPY: Record<RampStage, string> = {
-  authenticating: "Anchor'a bağlanılıyor…",
-  registering: "Kimlik kaydı yapılıyor…",
-  requesting: "Talimat alınıyor…",
-  transferring: "Transfer bildiriliyor…",
-  waiting: "Anchor işliyor…",
-  done: "Tamamlandı",
+/** The stage wording on the action button, which is terser than the panel's. */
+const BUTTON_STAGE: Record<RampStage, Key> = {
+  authenticating: "stage.authenticating",
+  registering: "stage.registering",
+  requesting: "stage.requestingInstructions",
+  transferring: "stage.reportingTransfer",
+  waiting: "stage.waiting",
+  done: "stage.done",
 };
 
 const MIN_TRY = 50;
@@ -44,7 +50,7 @@ interface PendingDeposit {
  * The counterparty for lira is always the anchor — no contract can hold a
  * bank balance, so the vault cannot be on the other side of this trade. What
  * the vault can do is front the USDC while the anchor settles, which is what
- * "anında al" does.
+ * "get it instantly" does.
  */
 export function SwapPanel({
   address,
@@ -57,8 +63,9 @@ export function SwapPanel({
   rate: number | null;
   onDone: () => void;
 }) {
+  const t = useT();
   const [direction, setDirection] = useState<"tryToUsdc" | "usdcToTry">("tryToUsdc");
-  const [tryAmount, setTryAmount] = useState("1.000");
+  const [tryAmount, setTryAmount] = useState(defaultTryAmount);
   const [usdcAmount, setUsdcAmount] = useState("10");
   const [iban, setIban] = useState("");
   const [bank, setBank] = useState("");
@@ -74,7 +81,7 @@ export function SwapPanel({
   const [receipt, setReceipt] = useState<string | null>(null);
 
   const outTry = direction === "tryToUsdc";
-  const tryValue = Number(tryAmount.replace(/\./g, "").replace(",", ".")) || 0;
+  const tryValue = parseAmount(tryAmount);
   const usdcStroops = parseUsdcToStroops(usdcAmount);
   const usdcValue = usdcStroops ? Number(usdcStroops) / 1e7 : 0;
   const estimate = rate ? (outTry ? tryValue / rate : usdcValue * rate) : null;
@@ -142,8 +149,10 @@ export function SwapPanel({
         // The anchor is on the hook now, so the pool can pay immediately.
         const advance = await requestAdvance(pending.jwt, pending.id);
         setReceipt(
-          `${tl(Number(advance.paid_out_usdc))} USDC havuzdan hemen cüzdanınıza geçti. ` +
-            `Anchor'ın USDC'si geldiğinde ${tl(Number(advance.owed_usdc))} USDC'lik avansı kapatın.`,
+          t("swap.receiptAdvance", {
+            paid: num(Number(advance.paid_out_usdc)),
+            owed: num(Number(advance.owed_usdc)),
+          }),
         );
         void awaitDeposit(pending.jwt, pending.id).then(onDone).catch(() => undefined);
         reset();
@@ -154,9 +163,7 @@ export function SwapPanel({
         setStage(s);
         setDetail(d ?? null);
       });
-      setReceipt(
-        `${tl(Number(usdc))} USDC cüzdanınıza geçti. Kasaya yatırmak isterseniz "Yatır" sekmesi.`,
-      );
+      setReceipt(t("swap.receiptDeposit", { amount: num(Number(usdc)) }));
       reset();
       onDone();
     } catch (err) {
@@ -182,7 +189,7 @@ export function SwapPanel({
           setDetail(d ?? null);
         },
       );
-      setReceipt(`Anchor ${tl(Number(out.try))} TRY'yi IBAN'ınıza gönderdi.`);
+      setReceipt(t("swap.receiptCashOut", { amount: num(Number(out.try)) }));
       onDone();
     } catch (err) {
       fail(err);
@@ -196,7 +203,7 @@ export function SwapPanel({
     <div className="grid gap-4">
       <div className="grid gap-2">
         <Field
-          label={outTry ? "Ödeyeceğiniz" : "Satacağınız"}
+          label={outTry ? t("swap.youPay") : t("swap.youSell")}
           value={outTry ? tryAmount : usdcAmount}
           onChange={(e) => (outTry ? setTryAmount(e.target.value) : setUsdcAmount(e.target.value))}
           inputMode="decimal"
@@ -205,13 +212,13 @@ export function SwapPanel({
           suffix={outTry ? "TRY" : "USDC"}
           error={
             tryOutOfRange
-              ? `Anchor limitleri ${MIN_TRY} – ${tl(MAX_TRY)} TRY.`
+              ? t("swap.limits", { min: num(MIN_TRY, 0), max: num(MAX_TRY, 0) })
               : notEnoughUsdc
-                ? `Cüzdanınızda ${tl(account?.usdc ?? 0)} USDC var.`
+                ? t("swap.youHaveUsdc", { amount: num(account?.usdc ?? 0) })
                 : null
           }
           {...(!outTry && account?.exists
-            ? { hint: `Cüzdanınızda ${tl(account.usdc)} USDC var.` }
+            ? { hint: t("swap.youHaveUsdc", { amount: num(account.usdc) }) }
             : {})}
         />
 
@@ -221,19 +228,17 @@ export function SwapPanel({
             reset();
             setDirection(outTry ? "usdcToTry" : "tryToUsdc");
           }}
-          aria-label="Yönü çevir"
+          aria-label={t("swap.flip")}
           className="mx-auto flex size-10 items-center justify-center rounded-full border border-border bg-card text-sm hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
         >
           ↓↑
         </button>
 
         <div className="rounded-[var(--radius)] border border-border bg-card p-3">
-          <p className="mb-1 text-xs text-muted-foreground">Alacağınız</p>
-          <Amount value={estimate ? tl(estimate) : "—"} unit={outTry ? "USDC" : "TRY"} size="lg" />
+          <p className="mb-1 text-xs text-muted-foreground">{t("swap.youGet")}</p>
+          <Amount value={estimate ? num(estimate) : "—"} unit={outTry ? "USDC" : "TRY"} size="lg" />
           <p className="mt-2 text-xs text-muted-foreground">
-            Kur <span className="tnum">{rate ? tl(rate) : "—"}</span> TRY/USDC — anchor'ın SEP-38
-            fiyatlaması, %0,5 spread dahil. Kurdaki ani ve yüksek dalgalanmalar bizden
-            kaynaklanmaz.
+            {t("swap.rateNote", { rate: rate ? num(rate) : "—" })}
           </p>
         </div>
       </div>
@@ -241,7 +246,7 @@ export function SwapPanel({
       {!outTry && (
         <div className="grid gap-3">
           <Field
-            label="TRY'yi alacağınız IBAN"
+            label={t("swap.ibanLabel")}
             value={iban}
             onChange={(e) => setIban(e.target.value)}
             placeholder="TR00 0000 0000 0000 0000 0000 00"
@@ -250,11 +255,11 @@ export function SwapPanel({
             error={ibanError}
           />
           <Field
-            label="Banka adı"
+            label={t("swap.bankLabel")}
             value={bank}
             onChange={(e) => setBank(e.target.value)}
             autoComplete="off"
-            placeholder="Örn. Akbank"
+            placeholder={t("swap.bankPlaceholder")}
           />
         </div>
       )}
@@ -268,11 +273,8 @@ export function SwapPanel({
             className="mt-0.5 size-4 accent-[var(--primary)]"
           />
           <span>
-            <span className="text-sm font-medium text-foreground">Anında al</span>
-            <span className="block text-muted-foreground">
-              Havaleyi bildirdiğiniz anda havuz USDC'yi verir; anchor'ın USDC'si geldiğinde
-              avansı kapatırsınız. %0,3 komisyon havuzda kalır.
-            </span>
+            <span className="text-sm font-medium text-foreground">{t("swap.instantTitle")}</span>
+            <span className="block text-muted-foreground">{t("swap.instantBody")}</span>
           </span>
         </label>
       )}
@@ -290,20 +292,15 @@ export function SwapPanel({
         <ol className="grid gap-1 rounded-[var(--radius)] bg-secondary p-3 text-xs text-muted-foreground">
           {outTry ? (
             <>
-              <li>1. Anchor kimliğinizi doğrular ve size kendi IBAN'ını + bir kod verir</li>
-              <li>2. Bankanızdan o IBAN'a, açıklamaya kodu yazarak TRY gönderirsiniz</li>
-              <li>
-                3.{" "}
-                {instant && relayEnabled()
-                  ? "Havuz USDC'yi hemen öder; anchor'ınki gelince avansı kapatırsınız"
-                  : "Anchor parayı görünce USDC'yi Stellar cüzdanınıza gönderir"}
-              </li>
+              <li>{t("swap.step1In")}</li>
+              <li>{t("swap.step2In")}</li>
+              <li>{instant && relayEnabled() ? t("swap.step3Instant") : t("swap.step3Normal")}</li>
             </>
           ) : (
             <>
-              <li>1. IBAN'ınız anchor'a SEP-12 ile kaydedilir</li>
-              <li>2. USDC'niz anchor hazinesine memo'lu ödemeyle gider</li>
-              <li>3. Anchor TRY'yi IBAN'ınıza öder (FAST)</li>
+              <li>{t("swap.step1Out")}</li>
+              <li>{t("swap.step2Out")}</li>
+              <li>{t("swap.step3Out")}</li>
             </>
           )}
         </ol>
@@ -311,8 +308,7 @@ export function SwapPanel({
 
       {needsTrustline && (
         <p className="rounded-[var(--radius)] border border-destructive/40 bg-destructive/10 p-3 text-xs">
-          Cüzdanınızda USDC trustline yok. Anchor USDC'yi gönderemez ve işlem sonsuza kadar
-          bekler — yukarıdaki "USDC'yi tanımla" düğmesiyle açın.
+          {t("swap.needTrustline")}
         </p>
       )}
 
@@ -322,7 +318,7 @@ export function SwapPanel({
 
       {pending ? (
         <Button variant="ghost" onClick={reset} disabled={simulating || Boolean(stage)}>
-          Vazgeç
+          {t("ui.cancel")}
         </Button>
       ) : (
         <Button
@@ -331,20 +327,16 @@ export function SwapPanel({
           loading={Boolean(stage)}
         >
           {!address
-            ? "Önce cüzdan bağlayın"
+            ? t("ui.connectFirst")
             : stage
-              ? BUTTON_COPY[stage]
+              ? t(BUTTON_STAGE[stage])
               : outTry
-                ? "Yatırma talimatı al"
-                : "USDC'yi TRY'ye çevir"}
+                ? t("swap.getInstructions")
+                : t("swap.cashOut")}
         </Button>
       )}
 
-      <p className="text-xs text-muted-foreground">
-        Bu takasın karşı tarafı anchor'dır, havuz değil — hiçbir kontrat banka bakiyesi
-        tutamaz. Havuz USDC'yi tutar, getirisini üretir ve isterseniz anchor'ı beklemeden
-        önden öder.
-      </p>
+      <p className="text-xs text-muted-foreground">{t("swap.counterparty")}</p>
     </div>
   );
 }
