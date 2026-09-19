@@ -55,7 +55,7 @@ status: live on Stellar testnet
 
 **Canlı Kasa Kontratı ·** [`CCEAE5OS…VOV2`](https://stellar.expert/explorer/testnet/contract/CCEAE5OSVBV63UVH26JKQ5PWXQPOHTAGL3WSDCCG2GYF23DGWM77VOV2)
 **· Anchor ·** [`tr-mock-anchor.fly.dev`](https://tr-mock-anchor.fly.dev)
-**· Demo ·** `<DEPLOYED_URL_PLACEHOLDER>`
+**· Demo ·** [`Stelpools`](https://stelpools.vercel.app)
 
 </div>
 
@@ -87,10 +87,9 @@ Türkiye'de bir kullanıcının elindeki TRY'yi zincir üstü USDC'ye çevirmesi
 
 | Alan | Detay |
 | --- | --- |
-| **Hackathon** | `<HACKATHON_ADI_PLACEHOLDER>` |
-| **Ana Track** | `<ANA_TRACK_PLACEHOLDER>` |
-| **Hedeflenen Bounty'ler** | `<BOUNTY_1_PLACEHOLDER>`, `<BOUNTY_2_PLACEHOLDER>` |
-| **Takım Adı** | `<TAKIM_ADI_PLACEHOLDER>` |
+| **Hackathon** | `Stellar Pro HAckathon` |
+| **Ana Track** | `Genesis` |
+
 
 ### Bu proje neden bu track'lere uyuyor
 
@@ -330,11 +329,10 @@ curl "https://friendbot.stellar.org?addr=<CÜZDAN_ADRESİN>"
 
 | | |
 | --- | --- |
-| 🎬 **Demo videosu** | `<DEMO_VIDEO_URL_PLACEHOLDER>` |
-| 🌐 **Canlı uygulama** | `<DEPLOYED_URL_PLACEHOLDER>` |
+| 🌐 **Canlı uygulama** | [`Stelpools` ](https://stelpools.vercel.app/)|
 | 📜 **Kasa kontratı** | [stellar.expert `CCEAE5OS…VOV2`](https://stellar.expert/explorer/testnet/contract/CCEAE5OSVBV63UVH26JKQ5PWXQPOHTAGL3WSDCCG2GYF23DGWM77VOV2) |
 | 🏦 **Anchor** | [tr-mock-anchor.fly.dev](https://tr-mock-anchor.fly.dev) · [`/.well-known/stellar.toml`](https://tr-mock-anchor.fly.dev/.well-known/stellar.toml) |
-| 🖼️ **Ekran görüntüleri** | `<SCREENSHOTS_PLACEHOLDER>` |
+
 
 ### Testleri çalıştır
 
@@ -381,20 +379,7 @@ Testler ne yaptığını adıyla söyler (`contracts/vault/src/test.rs`):
 
 ---
 
-## 👥 Takım
-
-| İsim | Rol | İletişim |
-| --- | --- | --- |
-| `<İSİM_PLACEHOLDER>` | `<ROL_PLACEHOLDER>` (ör. Soroban / Rust) | `<GITHUB_VEYA_X_PLACEHOLDER>` |
-| `<İSİM_PLACEHOLDER>` | `<ROL_PLACEHOLDER>` (ör. Frontend / UX) | `<GITHUB_VEYA_X_PLACEHOLDER>` |
-| `<İSİM_PLACEHOLDER>` | `<ROL_PLACEHOLDER>` (ör. Backend / Anchor) | `<GITHUB_VEYA_X_PLACEHOLDER>` |
-
----
-
 <div align="center">
 
-**Stellar testnet üzerinde çalışır. Gerçek para hareket etmez.**
-
-Kasa kontratı Soroban'da · TL giriş/çıkışı ve fiyatlama SEP-6 anchor üzerinden
 
 </div>
