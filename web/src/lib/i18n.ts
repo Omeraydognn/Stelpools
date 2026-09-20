@@ -97,20 +97,14 @@ type Entry = { en: string; tr: string };
  */
 export const dict = {
   // ---- shell ----
-  "app.name": { en: "Stelpools", tr: "Stelpools" },
-  "app.testnet": { en: "Testnet", tr: "Testnet" },
   "app.skipToContent": { en: "Skip to content", tr: "İçeriğe geç" },
   "nav.label": { en: "Main menu", tr: "Ana menü" },
-  "nav.vault": { en: "Pool", tr: "Kasa" },
-  "nav.about": { en: "Architecture", tr: "Mimari" },
-  "nav.language": { en: "Language", tr: "Dil" },
   "wallet.connect": { en: "Connect wallet", tr: "Cüzdan bağla" },
   "wallet.connecting": { en: "Connecting…", tr: "Bağlanıyor…" },
   "wallet.disconnect": { en: "Disconnect", tr: "Çıkış" },
   "wallet.yourAddress": { en: "Your wallet address", tr: "Cüzdan adresiniz" },
   "wallet.copyHint": { en: "click to copy", tr: "kopyalamak için tıklayın" },
   "wallet.rejected": { en: "Wallet connection cancelled", tr: "Cüzdan bağlantısı iptal edildi" },
-  "wallet.notConnected": { en: "Wallet not connected", tr: "Cüzdan bağlı değil" },
 
   // ---- KYC banner ----
   "kyc.idle": {
@@ -133,7 +127,6 @@ export const dict = {
   "kyc.unknownError": { en: "unknown error", tr: "bilinmeyen hata" },
 
   // ---- about page ----
-  "about.heading": { en: "Architecture", tr: "Mimari" },
   "about.p1": {
     en: "The fiat (TRY) leg belongs to the anchor: every lira in and out moves through its corporate IBAN over SEP-6. The crypto (USDC) leg belongs to the Soroban vault: it pools the incoming USDC and keeps everyone's share.",
     tr: "Fiat (TRY) tarafının sorumlusu Mock Anchor'dır: tüm TL giriş ve çıkışları onun kurumsal IBAN'ı üzerinden, SEP-6 ile yürür. Kripto (USDC) tarafının sorumlusu Soroban kasasıdır: gelen USDC'yi havuzda toplar ve herkesin payını tutar.",
@@ -141,11 +134,6 @@ export const dict = {
   "about.p2": {
     en: "Wallets pass through SEP-10 and SEP-12 in the background before a transaction. The pool's rate always comes from the anchor's SEP-38 pricing.",
     tr: "Cüzdanlar işlemden önce arka planda SEP-10 ve SEP-12'den geçer. Havuzun kuru daima anchor'ın SEP-38 fiyatlamasından beslenir.",
-  },
-  "about.contract": { en: "Vault contract:", tr: "Kasa kontratı:" },
-  "footer.note": {
-    en: "Stellar testnet · the USDC vault lives on Soroban, lira in/out and pricing go through tr-mock-anchor. No real money moves.",
-    tr: "Stellar testnet · USDC kasası Soroban'da, TL giriş/çıkışı ve fiyatlama tr-mock-anchor üzerinden. Gerçek para hareket etmez.",
   },
 
   // ---- configuration ----
@@ -163,10 +151,7 @@ export const dict = {
   "ui.copied": { en: "copied", tr: "kopyalandı" },
   "ui.copyLabel": { en: "copy {label}", tr: "{label} kopyala" },
   "ui.all": { en: "Max", tr: "Tümü" },
-  "ui.working": { en: "Working…", tr: "Çalışıyor…" },
-  "ui.processing": { en: "Processing…", tr: "İşleniyor…" },
   "ui.connectFirst": { en: "Connect a wallet first", tr: "Önce cüzdan bağlayın" },
-  "ui.none": { en: "—", tr: "—" },
 
   // ---- transaction stages ----
   "stage.building": { en: "Preparing…", tr: "Hazırlanıyor…" },
@@ -219,152 +204,26 @@ export const dict = {
     tr: "Bu biraz uzun sürüyor. Sayfayı kapatmayın; anchor işlemi arka planda devam ediyor.",
   },
 
-  // ---- requirements ----
-  "req.before": { en: "Before you continue:", tr: "Devam etmeden önce:" },
-  "req.noAccount": {
-    en: "Your wallet account does not exist on this network. On testnet you can create it with friendbot.",
-    tr: "Cüzdan hesabınız bu ağda yok. Testnet'te friendbot ile oluşturabilirsiniz.",
-  },
-  "req.noTrustlineBuy": {
-    en: "Your wallet needs a USDC trustline before it can receive USDC.",
-    tr: "USDC'yi alabilmek için cüzdanınızda USDC trustline olmalı.",
-  },
-  "req.noTrustline": { en: "Your wallet has no USDC trustline.", tr: "Cüzdanınızda USDC trustline yok." },
-  "req.needXlm": {
-    en: "You need about {needed} XLM for the stake and fees; your spendable balance is {have} XLM.",
-    tr: "Teminat ve ücretler için ~{needed} XLM gerekiyor, kullanılabilir bakiyeniz {have} XLM.",
-  },
-  "req.needUsdc": {
-    en: "You want to add {needed} USDC to the pool but your balance is {have} USDC.",
-    tr: "Havuza {needed} USDC eklemek istiyorsunuz ama bakiyeniz {have} USDC.",
-  },
-  "req.needFeeXlm": { en: "You need a little XLM for transaction fees.", tr: "İşlem ücretleri için biraz XLM gerekiyor." },
-  "req.addTrustline": { en: "Add USDC trustline", tr: "USDC'yi tanımla" },
-  "req.fundFriendbot": { en: "Fund with friendbot", tr: "Friendbot ile fonla" },
-
   // ---- pool header ----
-  "pool.pair": { en: "USDC / TRY", tr: "USDC / TRY" },
-  "pool.tagline": {
-    en: "Turn TRY into USDC, put it to work in the vault if you want, and leave whenever you like.",
-    tr: "TRY'yi USDC'ye çevir, istersen kasada çalıştır, istediğinde geri çık.",
-  },
-  "pool.contract": { en: "Contract", tr: "Kontrat" },
-  "pool.tvl": { en: "TVL", tr: "TVL" },
-  "pool.tvlTry": { en: "TVL (TRY)", tr: "TVL (TRY)" },
-  "pool.sharePrice": { en: "Share price", tr: "Pay fiyatı" },
-  "pool.withdrawFee": { en: "Withdrawal fee", tr: "Çıkış komisyonu" },
-  "pool.apr": { en: "Yield (annual)", tr: "Getiri (yıllık)" },
-  "pool.advanced": { en: "Fronted", tr: "Önden verilen" },
 
-  // ---- price chart ----
-  "chart.needMore": {
-    en: "The chart needs at least two events. As the first deposits land, the share price is drawn here.",
-    tr: "Grafik için en az iki hareket gerekiyor. Kasaya ilk yatırımlar yapıldıkça pay fiyatı burada çizilir.",
-  },
-  "chart.alt": {
-    en: "Share price from {from} USDC to {to} USDC",
-    tr: "Pay fiyatı {from} USDC'den {to} USDC'ye",
-  },
-  "chart.events": { en: "{n} events", tr: "{n} hareket" },
-  "chart.window": { en: " · last {h} hours", tr: " · son {h} saat" },
-  "chart.perShare": { en: "USDC/share", tr: "USDC/pay" },
-  "chart.title": { en: "Share price", tr: "Pay fiyatı" },
-  "chart.source": {
-    en: "From the vault's own events; it reaches back as far as the RPC's ledger window.",
-    tr: "Kasanın kendi event'lerinden; RPC'nin sakladığı son ledger penceresi kadar geriye gider.",
-  },
+  "pool.contract": { en: "Contract", tr: "Kontrat" },
 
   // ---- position ----
-  "position.title": { en: "Your position", tr: "Pozisyonunuz" },
   "position.connect": {
     en: "Connect your wallet to see your position.",
     tr: "Pozisyonunuzu görmek için cüzdanınızı bağlayın.",
-  },
-  "position.empty": {
-    en: "You have no shares in the vault. Use the panel on the right to enter with TRY or USDC.",
-    tr: "Kasada payınız yok. Sağdaki panelden TRY ya da USDC ile girebilirsiniz.",
-  },
-  "position.shares": { en: "Your shares", tr: "Payınız" },
-  "position.value": { en: "Value", tr: "Değeri" },
-  "position.inTry": { en: "In TRY", tr: "TRY karşılığı" },
-  "position.pnlPrefix": { en: "In this window you put in a net ", tr: "Bu pencerede net " },
-  "position.pnlMid": { en: " USDC, worth ", tr: " USDC koydunuz, bugünkü değeri " },
-  "position.pnlSuffix": { en: " USDC today — ", tr: " USDC — " },
-  "position.pnlTail": {
-    en: ". Deposits older than this window are not counted.",
-    tr: ". Daha eski yatırmalar bu hesaba girmez.",
   },
 
   // ---- tabs ----
   "tab.group": { en: "Action", tr: "İşlem" },
   "tab.swap": { en: "Swap", tr: "Takas" },
-  "tab.deposit": { en: "Deposit", tr: "Yatır" },
-  "tab.withdraw": { en: "Withdraw", tr: "Çek" },
-  "tab.pausedNote": {
-    en: "Deposits are paused for now. Withdrawals are open.",
-    tr: "Yatırımlar geçici olarak durduruldu. Çekimler açık.",
-  },
 
   // ---- swap ----
-  "swap.youPay": { en: "You pay", tr: "Ödeyeceğiniz" },
-  "swap.youSell": { en: "You sell", tr: "Satacağınız" },
-  "swap.youGet": { en: "You receive", tr: "Alacağınız" },
   "swap.flip": { en: "Flip direction", tr: "Yönü çevir" },
-  "swap.rateNote": {
-    en: "Rate {rate} TRY/USDC — the anchor's SEP-38 pricing, including a 0.5% spread. Sudden sharp moves in the rate do not come from us.",
-    tr: "Kur {rate} TRY/USDC — anchor'ın SEP-38 fiyatlaması, %0,5 spread dahil. Kurdaki ani ve yüksek dalgalanmalar bizden kaynaklanmaz.",
-  },
-  "swap.limits": { en: "Anchor limits are {min} – {max} TRY.", tr: "Anchor limitleri {min} – {max} TRY." },
-  "swap.youHaveUsdc": { en: "You have {amount} USDC in your wallet.", tr: "Cüzdanınızda {amount} USDC var." },
+
   "swap.ibanLabel": { en: "IBAN to receive the TRY", tr: "TRY'yi alacağınız IBAN" },
   "swap.bankLabel": { en: "Bank name", tr: "Banka adı" },
   "swap.bankPlaceholder": { en: "e.g. Akbank", tr: "Örn. Akbank" },
-  "swap.instantTitle": { en: "Get it instantly", tr: "Anında al" },
-  "swap.instantBody": {
-    en: "The pool hands over the USDC the moment you report the transfer; you close the advance when the anchor's USDC arrives. A 0.3% fee stays in the pool.",
-    tr: "Havaleyi bildirdiğiniz anda havuz USDC'yi verir; anchor'ın USDC'si geldiğinde avansı kapatırsınız. %0,3 komisyon havuzda kalır.",
-  },
-  "swap.step1In": {
-    en: "1. The anchor verifies you and gives you its own IBAN plus a code",
-    tr: "1. Anchor kimliğinizi doğrular ve size kendi IBAN'ını + bir kod verir",
-  },
-  "swap.step2In": {
-    en: "2. You send TRY to that IBAN from your bank, with the code in the description",
-    tr: "2. Bankanızdan o IBAN'a, açıklamaya kodu yazarak TRY gönderirsiniz",
-  },
-  "swap.step3Instant": {
-    en: "3. The pool pays the USDC right away; you close the advance when the anchor's arrives",
-    tr: "3. Havuz USDC'yi hemen öder; anchor'ınki gelince avansı kapatırsınız",
-  },
-  "swap.step3Normal": {
-    en: "3. When the anchor sees the money it sends USDC to your Stellar wallet",
-    tr: "3. Anchor parayı görünce USDC'yi Stellar cüzdanınıza gönderir",
-  },
-  "swap.step1Out": { en: "1. Your IBAN is registered with the anchor over SEP-12", tr: "1. IBAN'ınız anchor'a SEP-12 ile kaydedilir" },
-  "swap.step2Out": {
-    en: "2. Your USDC goes to the anchor's treasury as a payment carrying a memo",
-    tr: "2. USDC'niz anchor hazinesine memo'lu ödemeyle gider",
-  },
-  "swap.step3Out": { en: "3. The anchor pays the TRY to your IBAN (FAST)", tr: "3. Anchor TRY'yi IBAN'ınıza öder (FAST)" },
-  "swap.needTrustline": {
-    en: "Your wallet has no USDC trustline. The anchor cannot send the USDC and the transaction would wait forever — open it with the \"Add USDC trustline\" button above.",
-    tr: "Cüzdanınızda USDC trustline yok. Anchor USDC'yi gönderemez ve işlem sonsuza kadar bekler — yukarıdaki \"USDC'yi tanımla\" düğmesiyle açın.",
-  },
-  "swap.getInstructions": { en: "Get transfer instructions", tr: "Yatırma talimatı al" },
-  "swap.cashOut": { en: "Convert USDC to TRY", tr: "USDC'yi TRY'ye çevir" },
-  "swap.counterparty": {
-    en: "The counterparty for this swap is the anchor, not the pool — no contract can hold a bank balance. The pool holds the USDC, earns on it, and can pay you up front instead of making you wait for the anchor.",
-    tr: "Bu takasın karşı tarafı anchor'dır, havuz değil — hiçbir kontrat banka bakiyesi tutamaz. Havuz USDC'yi tutar, getirisini üretir ve isterseniz anchor'ı beklemeden önden öder.",
-  },
-  "swap.receiptAdvance": {
-    en: "{paid} USDC went straight from the pool to your wallet. Close the {owed} USDC advance when the anchor's USDC arrives.",
-    tr: "{paid} USDC havuzdan hemen cüzdanınıza geçti. Anchor'ın USDC'si geldiğinde {owed} USDC'lik avansı kapatın.",
-  },
-  "swap.receiptDeposit": {
-    en: "{amount} USDC is in your wallet. Use the \"Deposit\" tab if you want to put it into the vault.",
-    tr: "{amount} USDC cüzdanınıza geçti. Kasaya yatırmak isterseniz \"Yatır\" sekmesi.",
-  },
-  "swap.receiptCashOut": { en: "The anchor sent {amount} TRY to your IBAN.", tr: "Anchor {amount} TRY'yi IBAN'ınıza gönderdi." },
 
   // ---- deposit instructions ----
   "inst.title": { en: "Send from your bank to this account", tr: "Bankanızdan bu hesaba gönderin" },
@@ -382,108 +241,6 @@ export const dict = {
   },
   "inst.simulate": { en: "I sent the transfer (sandbox)", tr: "Havaleyi gönderdim (sandbox)" },
   "inst.simulated": { en: "Transfer recorded", tr: "Transfer kaydedildi" },
-
-  // ---- advance banner ----
-  "advance.title": { en: "You have an open advance", tr: "Açık avansınız var" },
-  "advance.bodyPrefix": {
-    en: "The vault lent you ",
-    tr: "Kasa, anchor'ın USDC'yi göndermesini beklemeden size ",
-  },
-  "advance.bodySuffix": {
-    en: " USDC without waiting for the anchor to deliver. Repay it once the anchor's USDC lands in your wallet — the fee is credited to everyone left in the pool.",
-    tr: " USDC'lik bir borç açtı. Anchor'ın USDC'si cüzdanınıza düştüğünde bunu geri ödeyin — komisyon havuzda kalan herkese yazılır.",
-  },
-  "advance.repay": { en: "Repay {amount} USDC and close", tr: "{amount} USDC öde ve kapat" },
-
-  // ---- deposit panel ----
-  "dep.method": { en: "Deposit method", tr: "Yatırma yöntemi" },
-  "dep.withTry": { en: "With TRY", tr: "TRY ile" },
-  "dep.withUsdc": { en: "With USDC", tr: "USDC ile" },
-  "dep.amount": { en: "Amount to deposit", tr: "Yatırılacak" },
-  "dep.tryHint": { en: "Anchor limits: 50 – 3,000 TRY", tr: "Anchor limitleri: 50 – 3.000 TRY" },
-  "dep.tryHintTr": { en: "Anchor limits: 50 – 3,000 TRY", tr: "Anchor limitleri: 50 – 3.000 TRY" },
-  "dep.estimate": { en: "Going into the vault (estimated)", tr: "Kasaya girecek (tahmini)" },
-  "dep.rateNote": {
-    en: "Rate {rate} TRY/USDC — the anchor's SEP-38 pricing. Sudden sharp moves in the rate do not come from us.",
-    tr: "Kur {rate} TRY/USDC — anchor'ın SEP-38 fiyatlaması. Kurdaki ani ve yüksek dalgalanmalar bizden kaynaklanmaz.",
-  },
-  "dep.step1": {
-    en: "1. TRY transfer to the anchor (simulated in the sandbox) → USDC arrives in your wallet",
-    tr: "1. Anchor'a TRY transferi (sandbox'ta simüle edilir) → cüzdanınıza USDC geçer",
-  },
-  "dep.step2": {
-    en: "2. In the same flow the USDC is deposited into the vault and you receive shares",
-    tr: "2. Aynı akışta USDC kasaya yatırılır ve pay alırsınız",
-  },
-  "dep.needTrustline": {
-    en: "Your wallet has no USDC trustline. The anchor cannot send the USDC and the transaction will stay pending.",
-    tr: "Cüzdanınızda USDC trustline yok. Anchor USDC'yi gönderemez ve işlem beklemede kalır.",
-  },
-  "dep.depositTryCta": { en: "Deposit TRY and enter the vault", tr: "TRY yatır ve kasaya gir" },
-  "dep.depositUsdcCta": { en: "Deposit into the vault", tr: "Kasaya yatır" },
-  "dep.receiptTry": {
-    en: "{assets} USDC deposited into the vault; you received {shares} shares.",
-    tr: "{assets} USDC kasaya yatırıldı, {shares} pay aldınız.",
-  },
-  "dep.receiptUsdc": { en: "You received {shares} shares. Transaction: {hash}…", tr: "{shares} pay aldınız. İşlem: {hash}…" },
-  "dep.badAnchorAmount": { en: "Could not read the amount returned by the anchor.", tr: "Anchor'dan gelen tutar okunamadı." },
-  "dep.badUsdcAmount": { en: "Enter a valid USDC amount.", tr: "Geçerli bir USDC tutarı girin." },
-
-  // ---- withdraw panel ----
-  "wd.shares": { en: "Shares to withdraw", tr: "Çekilecek pay" },
-  "wd.hint": {
-    en: "You hold {shares} {symbol}, worth {value} USDC today.",
-    tr: "{shares} {symbol} payınız var, bugünkü değeri {value} USDC.",
-  },
-  "wd.feeNote": {
-    en: "A {fee} withdrawal fee is deducted and stays in the vault — so it is credited to everyone who remains.",
-    tr: "{fee} çıkış komisyonu düşülür ve kasada kalır; yani kasada kalanların payına yazılır.",
-  },
-  "wd.toBank": { en: "Then send it to my bank account as TRY", tr: "Devamında TRY olarak banka hesabıma gönder" },
-  "wd.bankNote": {
-    en: "The USDC lands in your wallet first, then goes to the anchor's treasury, and the anchor pays the TRY to your IBAN. Two signatures are requested.",
-    tr: "USDC önce cüzdanınıza iner, sonra anchor'ın hazinesine gönderilir ve anchor TRY'yi IBAN'ınıza öder. İki imza istenir.",
-  },
-  "wd.cta": { en: "Withdraw from the vault", tr: "Kasadan çek" },
-  "wd.ctaBank": { en: "Withdraw and send as TRY", tr: "Çek ve TRY olarak gönder" },
-  "wd.receipt": { en: "{amount} USDC withdrawn to your wallet. Transaction: {hash}…", tr: "{amount} USDC cüzdanınıza çekildi. İşlem: {hash}…" },
-  "wd.receiptBank": { en: " The anchor sent {amount} TRY to your IBAN.", tr: " Anchor {amount} TRY'yi IBAN'ınıza gönderdi." },
-
-  // ---- how it works ----
-  "how.title": { en: "How it works", tr: "Nasıl çalışıyor" },
-  "how.p1": {
-    en: "Fiat never enters the contract. Lira comes in and goes out through the anchor's corporate IBAN; the contract only holds the USDC pool and the shares.",
-    tr: "Fiat hiç kontrata girmez. TL, anchor'ın kurumsal IBAN'ı üzerinden girer ve çıkar; kontrat yalnızca USDC havuzunu ve payları tutar.",
-  },
-  "how.p2": {
-    en: "Every USDC that reaches the vault without minting a share (a withdrawal fee, a yield distribution) raises the value of the existing shares. That is why the share price only goes up.",
-    tr: "Kasaya gelen her USDC, pay basılmadan geldiğinde (çıkış komisyonu, getiri dağıtımı) mevcut payların değerini yükseltir. Pay fiyatı bu yüzden yalnızca artar.",
-  },
-  "how.p3Prefix": { en: "Your share is a SEP-41 token called ", tr: "Payınız " },
-  "how.p3Suffix": {
-    en: ". It can be transferred, approved for a spender, and shows up in the wallet — just like an LP token on any other network. Whoever you send the share to gets the claim on the vault along with it.",
-    tr: " adlı bir SEP-41 token. Transfer edilebilir, bir başkasına yetki verilebilir, cüzdanda görünür — başka ağlardaki LP token'ları gibi. Payı kime gönderirseniz kasadaki hak da onunla birlikte gider.",
-  },
-  "how.p4": {
-    en: "Withdrawals can never be halted — not even while deposits are paused.",
-    tr: "Çekimler hiçbir koşulda durdurulamaz — yatırımlar duraklatılsa bile.",
-  },
-  "how.depositCap": { en: " The deposit cap is {amount} USDC.", tr: " Mevduat tavanı {amount} USDC." },
-
-  // ---- pool activity ----
-  "act.title": { en: "Pool activity", tr: "Havuz hareketleri" },
-  "act.source": { en: "From the contract's events · as far back as the RPC window", tr: "Kontratın event'lerinden · RPC penceresi kadar geriye" },
-  "act.empty": {
-    en: "No activity in this window. It appears here as soon as the first deposit is made.",
-    tr: "Bu pencerede hareket yok. İlk yatırma yapıldığında burada görünür.",
-  },
-  "act.fee": { en: "fee {amount}", tr: "komisyon {amount}" },
-  "act.deposited": { en: "Deposit", tr: "Yatırma" },
-  "act.withdrawn": { en: "Withdrawal", tr: "Çekme" },
-  "act.donated": { en: "Yield distribution", tr: "Getiri dağıtımı" },
-  "act.advanced": { en: "Advance paid", tr: "Önden ödeme" },
-  "act.repaid": { en: "Advance repaid", tr: "Avans geri ödeme" },
-  "act.written_off": { en: "Written off", tr: "Batık yazıldı" },
 
   // ---- anchor activity ----
   "aa.title": { en: "Your anchor transactions", tr: "Anchor işlemleriniz" },
@@ -509,92 +266,171 @@ export const dict = {
   "aa.st.refunded": { en: "Refunded", tr: "İade edildi" },
   "aa.st.expired": { en: "Expired", tr: "Süresi doldu" },
 
-  // ---- pool info ----
-  "pi.utilization": { en: "Liquidity utilization", tr: "Likidite kullanımı" },
-  "pi.utilizationNote": { en: "{advanced} USDC fronted, {liquid} USDC on hand", tr: "{advanced} USDC önden verilmiş, {liquid} USDC hazırda" },
-  "pi.staked": { en: "Staked shares", tr: "Stake edilmiş pay" },
-  "pi.stakedNote": {
-    en: "There is no staking mechanism; yield is written straight into the share price.",
-    tr: "Stake mekanizması yok; getiri doğrudan pay fiyatına yazılır.",
+  // ---- pool page ----
+  "pool2.tagline": {
+    en: "One pool, two tokens, and a price that is nothing more than the ratio between them.",
+    tr: "Tek havuz, iki token, ve aralarındaki orandan başka bir şey olmayan bir fiyat.",
   },
-  "pi.composition": { en: "Composition", tr: "Bileşim" },
-  "pi.asset": { en: "Asset", tr: "Varlık" },
-  "pi.ratio": { en: "Share", tr: "Oran" },
-  "pi.amount": { en: "Amount", tr: "Tutar" },
-  "pi.onHand": { en: "· on hand", tr: "· hazırda" },
-  "pi.fronted": { en: "· fronted", tr: "· önden verilmiş" },
-  "pi.total": { en: "Total", tr: "Toplam" },
-  "pi.volumeEarnings": { en: "Volume and earnings", tr: "Hacim ve kazanç" },
-  "pi.volume": { en: "Traded volume ({window})", tr: "İşlem hacmi ({window})" },
-  "pi.windowTracked": { en: "in the tracked window", tr: "izlenen pencerede" },
-  "pi.windowHours": { en: "in the last {h} hours", tr: "son {h} saatte" },
-  "pi.depWit": { en: "· deposits / withdrawals", tr: "· yatırma / çekme" },
-  "pi.withdrawFeesEarned": { en: "Withdrawal fees earned", tr: "Kazanılan çıkış komisyonu" },
-  "pi.advanceFeesEarned": { en: "Advance fees earned", tr: "Kazanılan avans komisyonu" },
-  "pi.advancesOpened": { en: "Advances opened", tr: "Açılan avans" },
-  "pi.writtenOff": { en: "Written off", tr: "Batık yazılan" },
-  "pi.yieldSources": { en: "Yield sources", tr: "Getiri kaynakları" },
-  "pi.measuredApr": { en: "Measured annual yield", tr: "Ölçülen yıllık getiri" },
-  "pi.notEnoughHistory": { en: "not enough history", tr: "yeterli geçmiş yok" },
-  "pi.advanceFee": { en: "Advance fee", tr: "Avans komisyonu" },
-  "pi.distribution": { en: "Distribution", tr: "Dağıtım" },
-  "pi.distributionValue": { en: "USDC arriving without minting shares → share price", tr: "pay basılmadan gelen USDC → pay fiyatı" },
-  "pi.contracts": { en: "Contracts", tr: "Kontratlar" },
-  "pi.vaultShareToken": { en: "Vault / share token", tr: "Kasa / pay token'ı" },
-  "pi.usdcSac": { en: "USDC (SAC)", tr: "USDC (SAC)" },
-  "pi.admin": { en: "Admin", tr: "Yönetici" },
-  "pi.relay": { en: "Advance relay", tr: "Avans relay'i" },
-  "pi.priceSource": { en: "Price source", tr: "Fiyat kaynağı" },
-  "pi.priceSourceValue": { en: "anchor SEP-38 · Reflector", tr: "anchor SEP-38 · Reflector" },
-  "pi.network": { en: "Network", tr: "Ağ" },
-  "pi.networkValue": { en: "Stellar testnet", tr: "Stellar testnet" },
-  "pi.parameters": { en: "Parameters", tr: "Parametreler" },
-  "pi.poolType": { en: "Pool type", tr: "Havuz tipi" },
-  "pi.poolTypeValue": { en: "single-asset, share-accounted vault", tr: "tek varlıklı, pay muhasebeli kasa" },
-  "pi.shareToken": { en: "Share token", tr: "Pay token'ı" },
-  "pi.decimals": { en: "7 decimals", tr: "7 hane" },
-  "pi.circulating": { en: "Shares outstanding", tr: "Dolaşımdaki pay" },
-  "pi.depositCap": { en: "Deposit cap", tr: "Mevduat tavanı" },
-  "pi.unlimited": { en: "unlimited", tr: "sınırsız" },
-  "pi.maxAdvance": { en: "Single advance limit", tr: "Tek avans limiti" },
-  "pi.advanceCap": { en: "Total advance cap", tr: "Toplam avans tavanı" },
-  "pi.off": { en: "off", tr: "kapalı" },
-  "pi.deposits": { en: "Deposits", tr: "Yatırımlar" },
-  "pi.paused": { en: "paused", tr: "durduruldu" },
-  "pi.open": { en: "open", tr: "açık" },
-  "pi.withdrawals": { en: "Withdrawals", tr: "Çekimler" },
-  "pi.alwaysOpen": { en: "always open", tr: "her koşulda açık" },
-  "pi.risks": { en: "Risks", tr: "Riskler" },
-  "pi.risk1Head": { en: "Advances are unsecured.", tr: "Avanslar teminatsız." },
-  "pi.risk1Body": {
-    en: " The vault pays before the anchor delivers and cannot force repayment on-chain. A bad advance is written off with write_off and the loss lands directly on the share price. That is why the limits are kept small.",
-    tr: " Kasa, anchor teslim etmeden önce ödeme yapar ve geri ödemeyi zincir üzerinde zorlayamaz. Batık bir avans write_off ile yazılır ve zarar doğrudan pay fiyatına düşer. Limitler bu yüzden küçük tutuluyor.",
+  "pool2.rate": { en: "1 USDC buys", tr: "1 USDC alır" },
+  "pool2.usdcSide": { en: "USDC in the pool", tr: "Havuzdaki USDC" },
+  "pool2.atrySide": { en: "aTRY in the pool", tr: "Havuzdaki aTRY" },
+  "pool2.fee": { en: "Swap fee", tr: "Takas komisyonu" },
+  "pool2.lpTokens": { en: "LP tokens", tr: "LP token" },
+  "pool2.yourPosition": { en: "Your position", tr: "Pozisyonunuz" },
+  "pool2.lpHeld": { en: "LP tokens held", tr: "Tuttuğunuz LP" },
+  "pool2.yourUsdc": { en: "Your USDC in it", tr: "İçindeki USDC'niz" },
+  "pool2.yourAtry": { en: "Your aTRY in it", tr: "İçindeki aTRY'niz" },
+  "pool2.shareOfPool": { en: "Share of the pool", tr: "Havuzdaki payınız" },
+  "pool2.walletTitle": { en: "Your wallet", tr: "Cüzdanınız" },
+  "pool2.liquidity": { en: "Liquidity", tr: "Likidite" },
+  "pool2.contracts": { en: "On-chain addresses", tr: "Zincir üstü adresler" },
+  "pool2.poolContract": { en: "Pool contract", tr: "Havuz kontratı" },
+  "pool2.atryIssuer": { en: "aTRY issuer", tr: "aTRY ihraççısı" },
+
+  "how2.title": { en: "How it works", tr: "Nasıl çalışıyor" },
+  "how2.p1": {
+    en: "The anchor is the only part that touches a bank. Send it lira and it issues {code} to your wallet, one for one — no rate, nothing to quote.",
+    tr: "Bankaya dokunan tek parça anchor'dır. Ona lira gönderirsiniz, cüzdanınıza birebir {code} basar — kur yok, kotasyon yok.",
   },
-  "pi.risk2Head": { en: "The relay is a trusted component.", tr: "Relay güvenilen bir bileşen." },
-  "pi.risk2Body": {
-    en: " It is the only party allowed to open an advance. It cannot move the pool's money anywhere else, but it decides who gets an advance.",
-    tr: " Avansı açmaya yetkili tek taraf o. Havuzun parasını başka bir yere taşıyamaz, ama kimin avans alacağına o karar verir.",
+  "how2.p2": {
+    en: "The pool is the only part that touches a price, and it does not quote one either: the rate is the ratio of the two reserves, and it moves only because somebody traded.",
+    tr: "Fiyata dokunan tek parça havuzdur, o da fiyat vermez: kur iki rezervin oranıdır ve yalnızca biri işlem yaptığı için hareket eder.",
   },
-  "pi.risk3Head": { en: "The admin can change the fee and the caps", tr: "Yönetici komisyonu ve tavanı değiştirebilir" },
-  "pi.risk3Body": {
-    en: " (the withdrawal fee at most 5%) and can pause deposits. It cannot pause withdrawals.",
-    tr: " (çıkış komisyonu en fazla %5) ve yatırımları durdurabilir. Çekimleri durduramaz.",
+  "how2.p3": {
+    en: "Every swap leaves {fee} of its input behind in the reserves. That is the whole of a provider's return, and it is why the product of the reserves only grows.",
+    tr: "Her takas, girdisinin {fee} kadarını rezervlerde bırakır. Likidite sağlayanın getirisi tamamen budur ve rezervlerin çarpımının yalnızca büyümesinin sebebi de odur.",
   },
-  "pi.risk4Head": { en: "Withdrawals can queue while utilization is high.", tr: "Likidite kullanımı yüksekken çekim beklemeli olabilir." },
-  "pi.risk4Body": {
-    en: " A withdrawal is only paid from USDC on hand; once the advances come back, the rest can be withdrawn too.",
-    tr: " Çekim yalnızca hazırdaki USDC'den ödenir; avanslar geri gelince kalan da çekilebilir.",
+  "how2.p4": {
+    en: "There is no admin on the pool contract. No pause switch, no fee setter, no allowlist — after it was deployed, nobody can change how it behaves, including us.",
+    tr: "Havuz kontratında yönetici yok. Durdurma düğmesi yok, komisyon ayarı yok, izin listesi yok — deploy edildikten sonra davranışını kimse değiştiremez, biz dâhil.",
   },
-  "pi.risk5Head": { en: "The fiat leg depends on the anchor.", tr: "Fiat tarafı anchor'a bağlı." },
-  "pi.risk5Body": {
-    en: " Lira in and out runs on the anchor's rails; if the anchor stalls, the lira leg stalls.",
-    tr: " TL girişi ve çıkışı anchor'ın rayları üzerinden yürür; anchor duraksarsa TL bacağı duraksar.",
+
+  // ---- fiat ramp (our own anchor) ----
+  "ramp2.group": { en: "Turkish lira", tr: "Türk lirası" },
+  "ramp2.deposit": { en: "Bring lira in", tr: "TL yatır" },
+  "ramp2.withdraw": { en: "Take lira out", tr: "TL çek" },
+  "ramp2.sendFromBank": { en: "Send from your bank", tr: "Bankanızdan göndereceğiniz" },
+  "ramp2.oneForOne": {
+    en: "One {code} is one lira. No rate, no spread — the exchange happens next door, in the pool.",
+    tr: "Bir {code} bir liradır. Kur yok, spread yok — döviz işlemi yan tarafta, havuzda oluyor.",
   },
-  "pi.risk6Head": { en: "Testnet.", tr: "Testnet." },
-  "pi.risk6Body": {
-    en: " No real money moves and the contract has not been audited.",
-    tr: " Gerçek para hareket etmiyor, kontrat denetlenmedi.",
+  "ramp2.needTrustline": {
+    en: "Your wallet has not agreed to hold {code} yet, so the anchor cannot deliver it.",
+    tr: "Cüzdanınız henüz {code} tutmayı kabul etmemiş, bu yüzden anchor gönderemez.",
   },
+  "ramp2.acceptAtry": { en: "Accept {code}", tr: "{code} tanımla" },
+  "ramp2.step1": {
+    en: "1. The anchor verifies you and gives you its IBAN plus a reference code",
+    tr: "1. Anchor kimliğinizi doğrular ve size IBAN'ını + bir referans kodu verir",
+  },
+  "ramp2.step2": {
+    en: "2. You send the lira from your own bank, with that code in the description",
+    tr: "2. Lirayı kendi bankanızdan, açıklamaya o kodu yazarak gönderirsiniz",
+  },
+  "ramp2.step3": {
+    en: "3. When the money arrives the anchor issues {code} to your wallet, one for one",
+    tr: "3. Para gelince anchor cüzdanınıza birebir {code} basar",
+  },
+  "ramp2.getIban": { en: "Get the transfer details", tr: "Havale bilgilerini al" },
+  "ramp2.received": { en: "{amount} {code} is in your wallet.", tr: "{amount} {code} cüzdanınıza geçti." },
+  "ramp2.sendBack": { en: "Send back", tr: "Geri göndereceğiniz" },
+  "ramp2.burnNote": {
+    en: "Your {code} goes back to the issuer, which destroys it — that is what returning an asset to its issuer does on Stellar. The lira then goes to your IBAN.",
+    tr: "{code}'niz ihraççıya geri gider ve yok olur — Stellar'da bir varlığı ihraççısına göndermek onu yakar. Lira da IBAN'ınıza geçer.",
+  },
+  "ramp2.withdrawCta": { en: "Withdraw as lira", tr: "Lira olarak çek" },
+  "ramp2.paidOut": { en: "The anchor sent {amount} TRY to your IBAN.", tr: "Anchor {amount} TRY'yi IBAN'ınıza gönderdi." },
+
+  // ---- AMM swap ----
+  "swap2.youPay": { en: "You pay", tr: "Ödeyeceğiniz" },
+  "swap2.youReceive": { en: "You receive", tr: "Alacağınız" },
+  "swap2.quoting": { en: "Asking the pool…", tr: "Havuza soruluyor…" },
+  "swap2.rate": { en: "Rate", tr: "Kur" },
+  "swap2.priceImpact": { en: "Price impact", tr: "Fiyat etkisi" },
+  "swap2.fee": { en: "Pool fee", tr: "Havuz komisyonu" },
+  "swap2.minReceived": { en: "Minimum received", tr: "En az alacağınız" },
+  "swap2.slippage": { en: "Slippage tolerance", tr: "Slippage toleransı" },
+  "swap2.balance": { en: "You have {amount} {code}.", tr: "Cüzdanınızda {amount} {code} var." },
+  "swap2.overBalance": { en: "You only have {amount} {code}.", tr: "Cüzdanınızda yalnızca {amount} {code} var." },
+  "swap2.impact": {
+    en: "This trade moves the price by {pct}. The pool is small, so size costs more than the fee — split it into smaller trades if you can.",
+    tr: "Bu işlem fiyatı {pct} kaydırıyor. Havuz küçük olduğu için büyüklük komisyondan pahalıya geliyor — mümkünse işlemi parçalara bölün.",
+  },
+  "swap2.emptyPool": {
+    en: "This pool has no liquidity yet, so there is nothing to trade against. Add liquidity first.",
+    tr: "Havuzda henüz likidite yok, karşısında işlem yapılacak bir şey bulunmuyor. Önce likidite ekleyin.",
+  },
+  "swap2.needTrustline": {
+    en: "Your wallet has not agreed to hold both tokens yet. On Stellar an account holds nothing it has not opted into.",
+    tr: "Cüzdanınız henüz iki token'ı da tutmayı kabul etmemiş. Stellar'da bir hesap, izin vermediği hiçbir varlığı tutamaz.",
+  },
+  "swap2.addTrustlines": { en: "Accept both tokens", tr: "İki token'ı da tanımla" },
+  "swap2.cta": { en: "Swap {from} for {to}", tr: "{from} ver, {to} al" },
+  "swap2.receipt": { en: "Swapped {paid} for {got}.", tr: "{paid} verildi, {got} alındı." },
+  "swap2.onchain": {
+    en: "This swap is a call to the pool contract, signed by your wallet. No server sits in between and the price comes from the reserves alone.",
+    tr: "Bu takas, cüzdanınızın imzaladığı bir kontrat çağrısıdır. Arada sunucu yok; fiyat yalnızca havuzdaki rezervlerden gelir.",
+  },
+
+  // ---- liquidity ----
+  "liq.group": { en: "Liquidity", tr: "Likidite" },
+  "liq.add": { en: "Add", tr: "Ekle" },
+  "liq.remove": { en: "Remove", tr: "Çıkar" },
+  "liq.firstProvider": {
+    en: "The pool is empty, so you set its opening price: whatever ratio you deposit is the rate everyone starts from.",
+    tr: "Havuz boş, yani açılış fiyatını siz belirliyorsunuz: hangi oranda yatırırsanız herkesin başlayacağı kur o olur.",
+  },
+  "liq.youSetThePrice": { en: "You choose this, and with it the starting price.", tr: "Bunu siz seçiyorsunuz, başlangıç fiyatı da buradan doğuyor." },
+  "liq.ratioDecides": { en: "Set by the pool's current ratio, so your deposit cannot move the price.", tr: "Havuzun mevcut oranından geliyor; yatırımınız fiyatı oynatamaz." },
+  "liq.addCta": { en: "Add liquidity", tr: "Likidite ekle" },
+  "liq.added": { en: "Added {a} and {b}. You received {shares} LP tokens.", tr: "{a} ve {b} eklendi. {shares} LP token aldınız." },
+  "liq.note": {
+    en: "LP tokens are a SEP-41 asset: transferable, and the claim on the pool travels with them.",
+    tr: "LP token'ları SEP-41 varlığıdır: devredilebilir ve havuzdaki hak da onunla birlikte gider.",
+  },
+  "liq.sharesToBurn": { en: "LP tokens to burn", tr: "Yakılacak LP token" },
+  "liq.youHold": { en: "You hold {amount} {symbol}.", tr: "{amount} {symbol} tutuyorsunuz." },
+  "liq.removeCta": { en: "Remove liquidity", tr: "Likidite çıkar" },
+  "liq.removed": { en: "Returned {a} and {b}.", tr: "{a} ve {b} geri alındı." },
+  "liq.noPosition": { en: "You have no liquidity in this pool yet.", tr: "Bu havuzda henüz likiditeniz yok." },
+  "liq.impermanent": {
+    en: "You always get back the pool's ratio at the moment you leave, not the one you put in — that difference is impermanent loss. Against it, every trade leaves {fee} behind for you.",
+    tr: "Her zaman çıktığınız andaki havuz oranını geri alırsınız, koyduğunuz oranı değil — bu fark impermanent loss'tur. Karşılığında her işlem size {fee} bırakır.",
+  },
+
+  // ---- AMM contract errors ----
+  "amm.1": { en: "This pool is already set up.", tr: "Bu havuz zaten kurulmuş." },
+  "amm.2": { en: "The pool has not been set up yet.", tr: "Havuz henüz kurulmamış." },
+  "amm.3": { en: "A pair must be two different tokens.", tr: "Bir çift, iki farklı token olmalı." },
+  "amm.4": { en: "Invalid fee.", tr: "Geçersiz komisyon." },
+  "amm.20": { en: "Invalid amount.", tr: "Geçersiz tutar." },
+  "amm.21": {
+    en: "The first deposit is too small to open the pool.",
+    tr: "İlk yatırım havuzu açmak için fazla küçük.",
+  },
+  "amm.22": { en: "Burning that many LP tokens would return nothing.", tr: "Bu kadar LP token hiçbir şey döndürmez." },
+  "amm.23": { en: "You do not hold that many LP tokens.", tr: "Bu kadar LP token'ınız yok." },
+  "amm.30": {
+    en: "The price moved: this swap would return less than your minimum. Try again, or raise your slippage tolerance.",
+    tr: "Fiyat hareket etti: bu takas belirlediğiniz alt sınırdan az döndürürdü. Tekrar deneyin veya slippage toleransını yükseltin.",
+  },
+  "amm.31": {
+    en: "The pool's ratio would take less USDC than your minimum.",
+    tr: "Havuzun oranı, belirlediğiniz alt sınırdan az USDC alırdı.",
+  },
+  "amm.32": {
+    en: "The pool's ratio would take less aTRY than your minimum.",
+    tr: "Havuzun oranı, belirlediğiniz alt sınırdan az aTRY alırdı.",
+  },
+  "amm.33": {
+    en: "The pool does not have enough liquidity for this trade.",
+    tr: "Havuzda bu işlem için yeterli likidite yok.",
+  },
+  "amm.34": { en: "That token is not in this pair.", tr: "Bu token bu çiftte yok." },
+  "amm.40": { en: "Arithmetic error.", tr: "Hesaplama hatası." },
+  "amm.50": { en: "Insufficient allowance.", tr: "Yetki (allowance) yetersiz." },
+  "amm.51": { en: "The allowance would already be expired.", tr: "Yetkinin süresi şimdiden dolmuş olurdu." },
+  "amm.52": { en: "Your LP balance is insufficient.", tr: "LP bakiyeniz yetersiz." },
 
   // ---- vault / chain errors ----
   "err.2": { en: "The vault has not been set up yet.", tr: "Kasa henüz kurulmamış." },

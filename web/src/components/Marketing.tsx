@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useT } from '../lib/i18n';
-import { explorerContract } from '../lib/vault';
+import { explorerContract } from '../lib/amm';
 import type { View } from './Header';
 import { useCopy } from '../lib/useCopy';
 
@@ -76,7 +76,7 @@ export function InfoPage({ view }: { view: Exclude<View, 'home' | 'vault'> }) {
   if (view === 'fees') return <section className="page-intro shell"><span className="eyebrow">STELPOOLS / {c('FEES', 'ÜCRETLER')}</span><h1>{c('Clear fees.', 'Şeffaf ücretler.')}<br/><mark>{c('In plain sight.', 'Her adımda açık.')}</mark></h1><p>{c('Understand what you pay before you make your move.', 'İşlem yapmadan önce hangi ücretleri ödediğinizi bilin.')}</p><div className="fee-table" role="table" aria-label={c('Fee overview', 'Ücret özeti')}><div role="row" className="fee-table-head"><span role="columnheader">{c('Operation', 'İşlem')}</span><span role="columnheader">{c('How the fee is determined', 'Ücret nasıl belirlenir?')}</span></div>{[
     [c('Pool withdrawals', 'Havuzdan çekim'), c('Set by the vault contract. The current rate is shown in the pool before confirmation.', 'Kasa kontratında belirlenir. Güncel oran, onaydan önce havuz ekranında gösterilir.')],
     [c('TRY ↔ USDC transfers', 'TRY ↔ USDC transferleri'), c('The anchor supplies the quote and any applicable fees for your transfer.', 'Anchor, transferinize özel kuru ve geçerli ücretleri sağlar.')],
-    [c('Instant advances', 'Anlık avanslar'), c('When available, the relay displays the fee before you approve.', 'Kullanılabildiğinde, relay onayınızdan önce ücreti gösterir.')],
+    [c('Price impact', 'Fiyat etkisi'), c('Large trades move the pool’s price against you. The swap screen shows the impact and your minimum before you sign.', 'Büyük işlemler havuzun fiyatını aleyhinize kaydırır. Takas ekranı imzalamadan önce etkiyi ve alt sınırınızı gösterir.')],
     [c('Network fees', 'Ağ ücretleri'), c('Stellar network fees are paid in XLM and shown in your wallet.', 'Stellar ağ ücretleri XLM ile ödenir ve cüzdanınızda gösterilir.')],
   ].map(([title, description]) => <div role="row" key={title}><strong role="cell">{title}</strong><p role="cell">{description}</p></div>)}</div><Action>{c('View current pool fees', 'Güncel havuz ücretlerini gör')}</Action></section>;
   return <><section className="page-intro shell"><span className="eyebrow">STELPOOLS / {c('ABOUT', 'HAKKIMIZDA')}</span><h1><mark>{c('Open finance.', 'Açık finans.')}</mark><br/>{c('Closer to home.', 'Artık daha yakın.')}</h1><p>{c('Building the connection between everyday money and an on-chain world.', 'Günlük hayattaki paranız ile zincir üstü dünya arasında bir bağlantı kuruyoruz.')}</p><div className="about-grid"><LineArt kind="bridge"/><div><h2>{c('Local roots. Open rails.', 'Yerel bir başlangıç. Açık bir altyapı.')}</h2><p>{t('about.p1')}</p><p>{t('about.p2')}</p><a className="text-link" href={explorerContract()} target="_blank" rel="noreferrer">{c('Explore our contract', 'Kontratımızı inceleyin')} <Arrow/></a></div></div></section><section className="risk-section"><div className="shell"><span className="eyebrow">{c('TRANSPARENCY FIRST', 'ÖNCE ŞEFFAFLIK')}</span><h2>{c('Know how it works.', 'Nasıl çalıştığını bilin.')}<br/>{c('Understand the risks.', 'Riskleri anlayın.')}</h2><div className="feature-grid">{[

@@ -8,6 +8,14 @@ secrets/
 # deploy.testnet.env bilerek takip edilir: içinde yalnızca public
 # contract id'leri ve public anahtarlar var, gizli anahtar yok.
 
+# --- çalışma zamanı verisi ---
+# The anchor's ledger. It is real state, not source: a copy of somebody's
+# machine has no business being in the repository.
+services/anchor/data/
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm
+
 # --- derleme çıktıları ---
 target/
 dist/

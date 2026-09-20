@@ -9,11 +9,14 @@
  */
 const DEFAULTS = {
   vaultId: "CCEAE5OSVBV63UVH26JKQ5PWXQPOHTAGL3WSDCCG2GYF23DGWM77VOV2",
+  ammId: "CBX67JY3W2MRZZVT4KJKE6BQUAYME6WK6HZ74LDQP7O46QHUPWFAAZTT",
+  atryIssuer: "GA6OU57WZIIU47TT56FTNMIYL574WMJ6MDHSS3ION65GTTXLTX2VPUHS",
+  atryCode: "aTRY",
   rpcUrl: "https://soroban-testnet.stellar.org",
   networkPassphrase: "Test SDF Network ; September 2015",
   horizonUrl: "https://horizon-testnet.stellar.org",
-  anchorUrl: "https://tr-mock-anchor.fly.dev",
-  anchorHomeDomain: "tr-mock-anchor.fly.dev",
+  anchorUrl: "http://localhost:8790",
+  anchorHomeDomain: "localhost:8790",
   usdcIssuer: "GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5",
 } as const;
 
@@ -29,11 +32,14 @@ function fromEnv<K extends keyof typeof DEFAULTS>(name: string, key: K): string 
 
 export const config = {
   vaultId: fromEnv("VITE_VAULT_CONTRACT_ID", "vaultId"),
+  /** The constant-product pool. Price lives here and nowhere else. */
+  ammId: fromEnv("VITE_AMM_CONTRACT_ID", "ammId"),
+  /** aTRY: one token, one lira held by the anchor. */
+  atryIssuer: fromEnv("VITE_ATRY_ISSUER", "atryIssuer"),
+  atryCode: fromEnv("VITE_ATRY_CODE", "atryCode"),
   rpcUrl: fromEnv("VITE_SOROBAN_RPC_URL", "rpcUrl"),
   networkPassphrase: fromEnv("VITE_NETWORK_PASSPHRASE", "networkPassphrase"),
   horizonUrl: fromEnv("VITE_HORIZON_URL", "horizonUrl"),
-  /** Optional: the advance relay. Without it, instant fills are hidden. */
-  relayUrl: (import.meta.env.VITE_RELAY_URL ?? "").replace(/\/$/, ""),
   anchorUrl: fromEnv("VITE_ANCHOR_URL", "anchorUrl").replace(/\/$/, ""),
   anchorHomeDomain: fromEnv("VITE_ANCHOR_HOME_DOMAIN", "anchorHomeDomain"),
   usdcIssuer: fromEnv("VITE_USDC_ISSUER", "usdcIssuer"),

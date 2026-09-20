@@ -1,6 +1,6 @@
 import { Asset, Memo, Operation, TransactionBuilder } from "@stellar/stellar-sdk";
 
-import { USDC, horizon } from "./account";
+import { ATRY, horizon } from "./account";
 import { putCustomer } from "./anchor";
 import { getToken, peekToken, withToken } from "./auth";
 import { config } from "./config";
@@ -94,11 +94,13 @@ async function waitForCompletion(
 }
 
 /**
- * TRY → USDC through the anchor (SEP-10 → SEP-12 → SEP-6 deposit).
+ * TRY → aTRY through our own anchor (SEP-10 → SEP-12 → SEP-6 deposit).
  *
- * In the sandbox the lira leg is a simulated bank transfer; against a real
- * anchor the user would send a FAST transfer to the IBAN the deposit returns
- * and this step would simply wait longer.
+ * One aTRY is one lira, so there is no rate here and nothing to quote. The
+ * exchange happens afterwards, in the pool, where the price is whatever the
+ * reserves say. On testnet the bank leg is simulated; in production the
+ * user sends a FAST transfer to the IBAN below and this step only waits
+ * longer.
  */
 export interface DepositInstructions {
   /** The anchor's own bank account — where the lira actually goes. */
@@ -107,8 +109,8 @@ export interface DepositInstructions {
   /** The reference the transfer description must carry. */
   reference: string;
   amountTry: string;
-  /** What the user will receive, as the anchor quoted it. */
-  amountUsdc: string | null;
+  /** What the user will receive. One for one with the lira, less any fee. */
+  amountAtry: string | null;
 }
 
 /** `instructions` comes back as {field: {value, description}}. */
@@ -127,7 +129,7 @@ export async function openDeposit(
 
     onProgress?.("requesting");
     const params = new URLSearchParams({
-      asset_code: "USDC",
+      asset_code: config.atryCode,
       account: address,
       type: "bank_account",
       amount: tryAmount,
@@ -147,7 +149,7 @@ export async function openDeposit(
         bankName: field("bank_name"),
         reference: field("external_transfer_memo"),
         amountTry: tryAmount,
-        amountUsdc: null,
+        amountAtry: null,
       },
     };
   });
@@ -197,13 +199,16 @@ export async function depositTry(
 }
 
 /**
- * USDC → TRY through the anchor (SEP-10 → SEP-12 with the IBAN → SEP-6
- * withdraw → a USDC payment to the anchor's treasury carrying the memo it
- * gave us). The anchor then pays the lira out to that IBAN.
+ * aTRY → TRY through our anchor.
+ *
+ * SEP-10 → SEP-12 with the IBAN → SEP-6 withdraw → an aTRY payment to the
+ * issuer carrying the memo it gave us. Paying an asset back to its issuer
+ * destroys it, so the tokens burn as the lira leaves; the anchor then pays
+ * that IBAN.
  */
 export async function withdrawToIban(
   address: string,
-  usdcAmount: string,
+  atryAmount: string,
   iban: string,
   bankName: string,
   onProgress?: RampProgress,
@@ -221,14 +226,16 @@ export async function withdrawToIban(
 
     onProgress?.("requesting");
     const params = new URLSearchParams({
-      asset_code: "USDC",
+      asset_code: config.atryCode,
       type: "bank_account",
-      amount: usdcAmount,
+      amount: atryAmount,
       dest: iban,
     });
     return {
       jwt: token,
-      withdrawal: await anchorFetch<Sep6Transaction & { account_id?: string; memo?: string }>(
+      withdrawal: await anchorFetch<
+        Sep6Transaction & { account_id?: string; memo?: string; memo_type?: string }
+      >(
         `/sep6/withdraw?${params}`,
         token,
       ),
@@ -248,11 +255,15 @@ export async function withdrawToIban(
     .addOperation(
       Operation.payment({
         destination,
-        asset: USDC as Asset,
-        amount: usdcAmount,
+        asset: ATRY as Asset,
+        amount: atryAmount,
       }),
     )
-    .addMemo(Memo.id(String(memo)))
+    // Our anchor matches withdrawals by a text memo; an id memo would look
+    // like somebody else's payment and sit unclaimed.
+    .addMemo(
+      withdrawal.memo_type === "id" ? Memo.id(String(memo)) : Memo.text(String(memo)),
+    )
     .setTimeout(120)
     .build();
 
@@ -282,7 +293,7 @@ export async function listTransactions(
   // No token and not allowed to ask for one: the caller shows a button.
   if (!jwt) return null;
   const body = await anchorFetch<{ transactions: Sep6Transaction[] }>(
-    "/sep6/transactions?asset_code=USDC",
+    `/sep6/transactions?asset_code=${encodeURIComponent(config.atryCode)}`,
     jwt,
   );
   return body.transactions ?? [];

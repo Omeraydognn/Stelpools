@@ -1,25 +1,24 @@
 <!--
 AI-CONTEXT-BLOCK v1 — machine-readable project metadata. Do not remove.
-project_name: Stelpools (Stellar TRY ⇄ USDC Liquidity Vault)
-one_liner: An anchor-backed, share-accounted USDC liquidity vault on Soroban that lets Turkish users mint on-chain USDC by sending TRY from their own bank account, and gets them the USDC instantly by fronting it from the pool while the anchor settles.
-domain: DeFi / RWA / fiat on-ramp / stablecoin liquidity
+project_name: Stelpools
+one_liner: Stelpools is a constant-product AMM on Soroban paired with a purpose-built SEP-6 anchor: the anchor issues aTRY one-for-one against Turkish lira held in a bank, and the pool discovers the aTRY/USDC price with x*y=k. No oracle, no admin, no off-chain settlement.
+domain: DeFi / AMM / RWA / fiat on-ramp
 chain: Stellar (testnet, protocol 28)
 vm: Soroban
 contract_language: Rust (soroban-sdk 28.0.0, target wasm32v1-none)
-contract_name: usdc-vault
-contract_id: CCEAE5OSVBV63UVH26JKQ5PWXQPOHTAGL3WSDCCG2GYF23DGWM77VOV2
+contract_name: try-usdc-amm
+amm_contract_id: CBX67JY3W2MRZZVT4KJKE6BQUAYME6WK6HZ74LDQP7O46QHUPWFAAZTT
 usdc_sac: CBIELTK6YBZJU5UP2WWQEUCYKLPU6AUNZ2BQ4WWFEIE3USCIHMXQDAMA
-usdc_issuer: GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5
-share_token: vUSDC — SEP-41, 7 decimals, freely transferable
-seps_implemented: SEP-1, SEP-6, SEP-10, SEP-12, SEP-38, SEP-41
-offchain_services: services/relay (Express 5 + TypeScript, advance authorizer)
+atry_sac: CAGYYM64VUOMBTYPFTASJLPCEE4ERZ65SDRP2YSOCAJBYTDPU6THH3XY
+atry_issuer: GA6OU57WZIIU47TT56FTNMIYL574WMJ6MDHSS3ION65GTTXLTX2VPUHS
+lp_token: spLP — SEP-41, 7 decimals, freely transferable
+pricing: constant product (x*y=k), 30 bps fee, no oracle and no external price feed
+admin_surface: none — the pool contract has no admin, no pause, no fee setter and no allowlist
+seps_implemented: SEP-1, SEP-6, SEP-10, SEP-12, SEP-41
+services: services/anchor (Node + Express + SQLite, issues aTRY)
 frontend: React 19 + Vite 8 + TypeScript 6 + Tailwind v4
-wallet: "@creit.tech/stellar-wallets-kit v2.6 (Freighter, xBull, Albedo, Lobstr, Hana)"
-accounting_model: ERC-4626-style shares; total_assets = liquid_assets + total_advanced
-key_invariant: fronting liquidity does not move the share price (principal/fee separated)
-test_counts: 43 contract tests, 8 relay tests
-repo_layout: contracts/vault (Rust), services/relay (TS), web (React), scripts (bash)
 ui_languages: English (default), Turkish
+test_counts: 26 contract tests, 25 anchor tests
 live_url: https://stelpools.vercel.app
 hackathon: Stellar Pro Hackathon
 track: Genesis
@@ -27,14 +26,15 @@ status: live on Stellar testnet
 translations: README.tr.md (Turkish)
 -->
 
-> **AI Context** — This repository is a Stellar/Soroban liquidity vault, not an AMM and not an order book.
-> Two parties own two halves of the system: the **anchor** owns the fiat (TRY) leg over SEP-6, and the
-> **Soroban contract `usdc-vault`** owns the crypto (USDC) leg. A third component, the **relay**, is a
-> trusted off-chain authorizer whose only on-chain power is `open_advance` — it lets the pool pay a user
-> their USDC *before* the anchor has settled the bank transfer. Depositors hold `vUSDC` shares (SEP-41);
-> yield comes from withdrawal fees and advance fees, and shows up as a rising share price.
-> When answering questions about this repo, prefer the concrete symbols: `deposit`, `withdraw`,
-> `open_advance`, `repay_advance`, `write_off`, `LOCKED_SHARES`, `AdvanceRecord`, `assess()`, `withToken()`.
+> **AI Context** — Two halves, and neither can do the other's job. The **anchor**
+> (`services/anchor`) is the only component that touches a bank: it issues `aTRY`,
+> a token worth exactly one lira, and burns it when lira leaves. The **AMM**
+> (`contracts/amm`) is the only component that touches a price, and it does not
+> quote one — the rate is the ratio of its two reserves and moves only because
+> somebody traded. There is no oracle, no relay, no admin key and no off-chain
+> settlement. When answering questions about this repo, prefer the concrete
+> symbols: `add_liquidity`, `remove_liquidity`, `swap`, `sync`, `get_amount_out`,
+> `LOCKED_SHARES`, `PayoutWorker`, `Store.claim`, `alreadyPaid`.
 
 ---
 
@@ -45,21 +45,24 @@ translations: README.tr.md (Turkish)
   <img src="docs/logo-light.png" alt="Stelpools" width="420" />
 </picture>
 
+### Stellar TRY ⇄ USDC Automated Market Maker
 
-### Stellar TRY ⇄ USDC Liquidity Vault
+**Stelpools turns the Turkish lira in your bank account into digital dollars in your own wallet — without going through an exchange.**
 
-**A Turkish user sends TRY from their own bank account and receives USDC on-chain — and the pool fronts the money while the anchor is still settling.**
+Under the hood: a purpose-built SEP-6 anchor issues `aTRY` one-for-one against lira,
+and a constant-product Soroban pool prices it against USDC. Nothing quotes the rate;
+it is the ratio of the reserves.
 
 [![Network](https://img.shields.io/badge/Stellar-Testnet-000000?style=flat-square&logo=stellar)](https://stellar.expert/explorer/testnet)
 [![Soroban](https://img.shields.io/badge/Soroban-SDK%2028.0.0-3E1BDB?style=flat-square)](https://developers.stellar.org/docs/build/smart-contracts)
 [![Rust](https://img.shields.io/badge/Rust-wasm32v1--none-CE422B?style=flat-square&logo=rust)](https://www.rust-lang.org/)
 [![React](https://img.shields.io/badge/React-19-61DAFB?style=flat-square&logo=react)](https://react.dev)
-[![Tests](https://img.shields.io/badge/tests-43%20contract%20%2B%208%20relay-2ea043?style=flat-square)](#-demo--tests)
-[![SEPs](https://img.shields.io/badge/SEP-1%20·%206%20·%2010%20·%2012%20·%2038%20·%2041-0EA5E9?style=flat-square)](#%EF%B8%8F-system-architecture)
+[![Tests](https://img.shields.io/badge/tests-26%20contract%20%2B%2025%20anchor-2ea043?style=flat-square)](#-demo--tests)
+[![No admin](https://img.shields.io/badge/pool-no%20admin%20key-086844?style=flat-square)](#the-pool-has-no-owner)
 [![License](https://img.shields.io/badge/license-MIT-black?style=flat-square)](#)
 
-**Live vault contract ·** [`CCEAE5OS…VOV2`](https://stellar.expert/explorer/testnet/contract/CCEAE5OSVBV63UVH26JKQ5PWXQPOHTAGL3WSDCCG2GYF23DGWM77VOV2)
-**· Anchor ·** [`tr-mock-anchor.fly.dev`](https://tr-mock-anchor.fly.dev)
+**Pool ·** [`CBX67JY3…AZTT`](https://stellar.expert/explorer/testnet/contract/CBX67JY3W2MRZZVT4KJKE6BQUAYME6WK6HZ74LDQP7O46QHUPWFAAZTT)
+**· aTRY ·** [`CAGYYM64…H3XY`](https://stellar.expert/explorer/testnet/contract/CAGYYM64VUOMBTYPFTASJLPCEE4ERZ65SDRP2YSOCAJBYTDPU6THH3XY)
 **· Demo ·** [`Stelpools`](https://stelpools.vercel.app)
 
 🇹🇷 [Türkçe sürüm için: README.tr.md](README.tr.md)
@@ -72,21 +75,22 @@ translations: README.tr.md (Turkish)
 
 ### The problem
 
-In Turkey, turning lira into on-chain USDC runs into four separate sources of friction:
+Turning Turkish lira into on-chain dollars runs into four separate frictions:
 
-- **The centralized exchange is the only door.** In practice the TRY → USDC path goes through a single CEX: KYC, account-freeze risk, withdrawal limits, and full custody hand-over. Until the user reaches their own wallet, their money sits on someone else's balance sheet.
-- **P2P has a matching problem.** Classic P2P order boards push the job of finding a counterparty onto the user. No liquidity means no trade; the rate moves with the size you type in; dispute resolution is manual.
-- **Bank settlement is slow.** A FAST transfer may look instant, but the anchor still needs minutes to see the money and mint USDC on-chain. The user spends that time staring at a "where is my money?" screen.
-- **Liquidity providers get nothing.** Anyone willing to put capital behind this rail has no measurable, on-chain-verifiable return for doing so.
+- **The centralized exchange is the only door.** KYC, freeze risk, withdrawal limits and full custody hand-over. Until you reach your own wallet your money sits on someone else's balance sheet.
+- **P2P has a matching problem.** Order boards push finding a counterparty onto the user. No liquidity means no trade, and dispute resolution is manual.
+- **Someone has to be trusted with the price.** An oracle-priced or quote-driven gateway is only as honest as whoever sets the number, and you cannot check it.
+- **Nobody is paid for providing the rail.** Capital behind the conversion earns nothing verifiable.
 
-### The solution — what this architecture does
+### The solution
 
-- **Responsibility is split in two, and each half is owned by the party that is good at it.** The fiat (TRY) leg belongs entirely to the **anchor**: the corporate IBAN, the KYC, and the SEP-38 pricing are its job. The crypto (USDC) leg belongs entirely to the **Soroban vault** (`contracts/vault`): it holds the USDC, keeps the share ledger, and cannot hand one person's shares to another. Neither component carries the other's authority.
-- **No order book — a pool.** The user never looks for a counterparty; the pool *is* the counterparty. The rate comes from one source (the anchor's SEP-38 `/prices`, fed by Reflector) and does not drift with trade size.
-- **The pool fronts the money (`open_advance`).** The moment the anchor reports it has seen the bank transfer — before it has minted any USDC — the relay authorizes the vault to pay the user an advance. The user has their USDC in **seconds**. When the anchor finishes settling, `repay_advance` closes the debt.
-- **Fronting does not distort the share price.** Because `AdvanceRecord { principal, owed }` separates the two, the identity `total_assets = liquid_assets + total_advanced` holds: the principal is still an asset, and the fee is only booked once collected. This is pinned down by the `fronting_does_not_move_the_share_price` test.
-- **Liquidity providers earn a measurable return.** A depositor receives `vUSDC` shares (SEP-41). The withdrawal fee (default **50 bps**) and the advance fee stay in the pool; the yield shows up on-chain as a rising share price. Shares transfer freely — whoever receives one can withdraw against it directly.
-- **Losses are not hidden.** If an advance is never repaid, the admin calls `write_off`; the principal leaves the asset base and the share price drops in **the same ledger**. Nothing is deferred.
+**Split the system so that no component can do the other's job, and give the price to arithmetic.**
+
+- **The anchor owns the lira, and nothing else.** Send it 1,000 TRY and it issues exactly 1,000 `aTRY` to your wallet. There is no rate on that leg, so there is nothing to argue about and nothing to manipulate. Withdrawing sends the token back to its issuer, which destroys it — so the supply of `aTRY` is, by construction, the lira taken in and not yet paid back. Anyone can check it on Horizon.
+- **The pool owns the price, and nobody owns the pool.** `aTRY ⇄ USDC` is a constant-product market: `x · y = k`. The rate is the ratio of the reserves. No oracle feeds it, no admin sets it, and it moves only because somebody traded.
+- **No counterparty to find.** The pool is the other side of every trade, always.
+- **Providers are paid in the open.** Every swap leaves 30 bps of its input in the reserves, which is why `k` only grows. LP tokens are SEP-41, so the position is transferable like any other asset.
+- **Nothing settles off-chain.** A swap is one signed call. There is no relay, no queue, no webhook and nothing to wait for.
 
 ---
 
@@ -97,29 +101,40 @@ In Turkey, turning lira into on-chain USDC runs into four separate sources of fr
 | **Hackathon** | `Stellar Pro Hackathon` |
 | **Primary track** | `Genesis` |
 
-### Why this project fits those tracks
+### Why this fits
 
-- **Soroban / smart contracts.** `usdc-vault` is a production-shaped vault contract written against `soroban-sdk 28.0.0`, emitting typed `#[contractevent]` events, compiled with `overflow-checks = true`, and covered by **43 unit tests**. There are no library dependencies — the share accounting, the SEP-41 token layer, and the advance ledger are all hand-written.
-- **Anchors / SEP integration.** SEP-1 discovery, SEP-10 auth, SEP-12 KYC, SEP-38 pricing and SEP-6 deposit/withdraw are wired end to end — and the anchor's *own* status and error messages are carried through to the interface verbatim (`anchorError()`, `RampStatus`).
-- **RWA / fiat on-ramp.** A real bank-transfer flow: the anchor hands out its IBAN and a reference code, and the user sends the money with that code in the transfer description.
-- **DeFi / liquidity.** ERC-4626-style share accounting, Uniswap's `MINIMUM_LIQUIDITY` pattern (`LOCKED_SHARES`), capacity limits, and a share-price chart read straight from on-chain events.
+- **Soroban.** A hand-written Uniswap-v2-style AMM against `soroban-sdk 28.0.0`, compiled with `overflow-checks`, emitting typed `#[contractevent]` events, covered by **26 tests**. No AMM library — the curve, the share accounting and the SEP-41 LP token are all in this repo.
+- **Anchors.** Not an integration with someone else's anchor: **we wrote the anchor**, SEP-1/6/10/12, with its own Stellar issuer, a durable ledger and a payout worker built to survive a crash.
+- **RWA.** `aTRY` is a receipt for money in a bank account, with the supply reconcilable against the chain.
+- **DeFi.** Price discovery with no trusted party anywhere in it.
 
 ---
 
 ## ⚙️ System Architecture
 
+### The two halves
+
+| | Anchor (`services/anchor`) | Pool (`contracts/amm`) |
+| --- | --- | --- |
+| Touches a bank | **yes**, that is its only job | never |
+| Touches a price | never | **yes**, and only as a ratio |
+| Holds an admin key | issuer key, to mint and burn | **none at all** |
+| Can be wrong about | whether lira arrived | nothing — it is arithmetic |
+| Written in | Node + Express + SQLite | Rust / Soroban |
+
+Keeping them apart is the point. The anchor cannot move a price and the pool cannot lie about a bank transfer, because neither has any way to.
+
 ### Components
 
-| Layer | Directory | Technology | Responsibility |
-| --- | --- | --- | --- |
-| **Smart contract** | `contracts/vault/` | Rust · `soroban-sdk 28.0.0` · `wasm32v1-none` | Custody USDC, mint/burn shares, keep the advance ledger |
-| **Share token** | `contracts/vault/src/token_impl.rs` | SEP-41 | `vUSDC`, 7 decimals, allowances in temporary storage |
-| **Relay** | `services/relay/` | Node · Express 5 · TypeScript · Zod · Pino | Verify the anchor's record, then sign `open_advance` |
-| **Frontend** | `web/` | React 19 · Vite 8 · TypeScript 6 · Tailwind v4 | Swap / Deposit / Withdraw, pool info, anchor status |
-| **Wallet** | `web/src/lib/wallet.ts` | `@creit.tech/stellar-wallets-kit` 2.6 | Freighter, xBull, Albedo, Lobstr, Hana |
-| **Fiat rail** | *(external)* | `tr-mock-anchor.fly.dev` | SEP-1/6/10/12/38 · TRY IBAN · Reflector rate |
+| Layer | Directory | Technology |
+| --- | --- | --- |
+| **AMM** | `contracts/amm/` | Rust · `soroban-sdk 28.0.0` · `wasm32v1-none` |
+| **LP token** | `contracts/amm/src/token_impl.rs` | SEP-41 · `spLP` · 7 decimals |
+| **Anchor** | `services/anchor/` | Node 22+ · Express 5 · SQLite · Zod · Pino |
+| **Frontend** | `web/` | React 19 · Vite 8 · TypeScript 6 · Tailwind v4 |
+| **Wallet** | `web/src/lib/wallet.ts` | `@creit.tech/stellar-wallets-kit` 2.6 |
 
-### Main flow — arrive with lira, leave with USDC immediately
+### The flow
 
 ```mermaid
 sequenceDiagram
@@ -127,208 +142,166 @@ sequenceDiagram
     actor U as User
     participant W as Web<br/>(React + Vite)
     participant K as Wallet<br/>(Freighter)
-    participant A as Anchor<br/>(SEP-6/10/12/38)
     participant B as Bank<br/>(TRY / FAST)
-    participant R as Relay<br/>(Express)
-    participant V as Soroban Vault<br/>usdc-vault
-    participant S as Stellar Testnet
+    participant A as Anchor<br/>services/anchor
+    participant I as aTRY issuer<br/>(Stellar account)
+    participant P as Pool<br/>contracts/amm
+    participant S as Stellar
 
-    U->>W: "1,000 TRY → USDC" (Swap tab)
-    W->>K: request SEP-10 challenge signature
-    Note over W,K: getToken() caches the JWT in<br/>sessionStorage — the wallet opens once
-    K-->>W: signed challenge
-    W->>A: POST /auth
-    A-->>W: JWT (24 h)
-    W->>A: PUT /sep12/customer  (KYC)
-    A-->>W: 202 {id}
-    W->>A: GET /sep38/prices  (sell=iso4217:TRY)
-    A-->>W: 1 USDC = 49.03 TRY
-    W->>A: GET /sep6/deposit?amount=1000&type=bank_account
-    A-->>W: {id, instructions: IBAN + reference code}
-    W-->>U: DepositInstructionsCard<br/>IBAN · Amount · Reference code
+    Note over U,I: 1 — lira becomes a token. No rate anywhere in this half.
+    U->>W: "Bring in 1,000 TRY"
+    W->>K: sign the SEP-10 challenge
+    K-->>W: signed
+    W->>A: POST /auth → JWT · PUT /sep12/customer
+    W->>A: GET /sep6/deposit?amount=1000
+    A-->>W: its IBAN + reference "STP-4KD2-9XQM"
+    U->>B: transfer 1,000 TRY, reference in the description
+    B-->>A: the money arrived
+    A->>A: row → pending_anchor, claimed atomically
+    A->>I: issue 1,000 aTRY
+    I->>S: payment → the user's wallet
+    S-->>U: 1,000 aTRY
 
-    U->>B: Bank transfer → the anchor's IBAN<br/>description: "TRMA-XXXX-XXXX"
-    B-->>A: money arrived (reference matched)
-    A-->>A: status = pending_anchor
-
-    rect rgb(232, 240, 254)
-    Note over W,V: If "Get it instantly" is on — the pool fronts
-    W->>R: POST /advance {account}
-    R->>A: GET /sep6/transaction?id=…
-    A-->>R: {status: pending_anchor, amount_out: 20.39}
-    R->>R: assess() — ownership, status, amount, open-advance checks
-    R->>V: open_advance(user, 20.39)  [relay signature]
-    V->>V: write AdvanceRecord{principal, owed}<br/>total_advanced += principal
-    V->>S: USDC transfer → user
-    S-->>U: 20.39 USDC in the wallet (within seconds)
-    end
-
-    A->>S: settlement: USDC → user / vault
-    W->>V: repay_advance(from, user, amount)
-    V->>V: principal retires first, the fee stays in the pool
-    Note over V: share price ↑ — yield booked to the LPs
-    W-->>U: RampStatus: completed
+    Note over U,P: 2 — the token finds its price. No server in this half.
+    U->>W: "Swap it for USDC"
+    W->>P: simulate get_amount_out(aTRY, 1000)
+    P-->>W: 20.2409 USDC · impact 0.69%
+    W-->>U: quote, price impact, and the minimum you will accept
+    U->>K: sign swap(aTRY, 1000, min_out)
+    K->>P: the call, straight to the contract
+    P->>P: out = (in·9970·reserve_out) / (reserve_in·10000 + in·9970)
+    P->>P: refuse if out < min_out
+    P->>S: USDC → the user, aTRY → the reserves
+    S-->>U: 20.2409 USDC
+    Note over P: 30 bps stayed behind. k grew. Every LP is worth more.
 ```
 
-### Share accounting, in one line
+### The maths, in full
 
 ```text
-shares_minted  = assets × total_shares / total_assets
-total_assets   = liquid_assets + total_advanced      ← fronting does not distort the price
-share_price    = total_assets / total_shares
+swap      out = (in × (10000 − fee_bps) × reserve_out)
+                ────────────────────────────────────────────
+                (reserve_in × 10000) + in × (10000 − fee_bps)
+
+deposit   first provider   shares = √(a × b) − LOCKED_SHARES
+          everyone after   shares = min(a × supply / reserve_a,
+                                        b × supply / reserve_b)
+
+withdraw  a = shares × reserve_a / supply      (always the current ratio)
+          b = shares × reserve_b / supply
 ```
 
-A first deposit below `MIN_INITIAL_DEPOSIT = 1.0000000 USDC` is rejected (`BelowMinimumDeposit`, code 21), and on the first mint `LOCKED_SHARES = 1_000_000` (0.1 share) is locked to the contract itself — Uniswap's `MINIMUM_LIQUIDITY` pattern, here as a defence against share-price inflation attacks.
+`LOCKED_SHARES = 1000` is Uniswap's `MINIMUM_LIQUIDITY`, minted to the contract
+itself and never redeemable — without it the pool could be emptied to one unit
+and its share price inflated by donation.
 
-### Trust model, stated plainly
+Reserves are tracked in storage rather than read from the token balances, so
+sending tokens straight to the contract cannot push the price. Anything that
+does arrive that way is picked up by `sync`, where it lifts every LP equally.
 
-| Component | What it can do | What it **cannot** do |
-| --- | --- | --- |
-| **Admin** (`ADMIN`) | set fees/limits/pause, call `write_off` | Move any user's shares or the pool's USDC |
-| **Relay** (`RELAY`) | only `open_advance` | Send the pool's USDC anywhere else |
-| **Anchor** | take the TRY, mint the USDC | Touch vault state |
-| **User** | `deposit`, `withdraw`, transfer shares | Spend someone else's shares (SEP-41 allowance) |
+### The pool has no owner
 
-> ⚠️ An advance is **unsecured.** Until repayment, the vault is trusting the anchor record the relay verified. `services/relay/README.md` says so outright — and `write_off` exists for exactly this reason.
+There is no `set_fee`, no `set_admin`, no `pause`, no allowlist and no upgrade
+path. After the constructor ran, the only things that can change this
+contract's state are `add_liquidity`, `remove_liquidity`, `swap` and `sync` —
+and every one of them is open to anybody. The fee was fixed at deployment and
+cannot be changed by us or anyone else.
+
+### What still requires trust
+
+Stated plainly, because a pitch that claims none is lying:
+
+- **The anchor is trusted with the lira.** `aTRY` is worth a lira because the anchor is holding one. The chain can prove how many tokens exist; it cannot prove the bank balance behind them. That is the same trust any fiat-backed token asks for, and it is why the supply is published rather than asserted.
+- **The issuer key can mint.** It is what issuing means. It cannot touch the pool, change a price, or move anyone's tokens.
+- **Testnet.** No real money moves and nothing has been audited.
 
 ---
 
 ## 🚀 Key Features
 
-### Smart contract (`contracts/vault/src/lib.rs`)
+### The pool (`contracts/amm/src/lib.rs`)
 
-- **`deposit(from, assets) -> shares`** — pulls the USDC, mints shares; enforces `deposit_cap` and `paused`.
-- **`withdraw(from, shares) -> assets`** / **`withdraw_all(from)`** — burns the shares, leaves the fee (`withdraw_fee_bps`, capped at `MAX_FEE_BPS = 500`) in the pool. If the payout would exceed `liquid_assets` it returns `InsufficientLiquidity` (65) — money that is out on advance cannot be withdrawn.
-- **`open_advance(user, amount)`** — relay only. Writes `AdvanceRecord { principal, owed }`.
-- **`repay_advance(from, user, amount)`** — anyone may repay, never more than is owed; the **principal retires first**.
-- **`write_off(user)`** — admin only. Drops the principal, and the share price falls immediately.
-- **`preview_deposit` / `preview_withdraw`** — what the interface promises and what actually gets minted are tested to match exactly (`previews_match_what_actually_happens`).
-- **`donate(from, assets)`** — a direct donation; lifts every share.
-- **Full SEP-41 compliance** — `transfer`, `approve`, `allowance`, `transfer_from`, `burn`, `burn_from`; allowances expire (`InvalidExpirationLedger`, 51).
-- **Typed events** (`events.rs`): `Deposited`, `Withdrawn`, `Donated`, `Advanced`, `Repaid`, `WrittenOff`, `Transfer`, `Approve`, `Mint`, `Burn`.
-- **Numbered error codes** (`errors.rs`) — the interface maps them to human messages (`web/src/lib/vault.ts`).
+- **`swap(trader, token_in, amount_in, min_out) -> amount_out`** — `min_out` is enforced by the contract, so a price that moved between signing and landing is refused rather than silently accepted.
+- **`add_liquidity(provider, a_desired, b_desired, min_a, min_b)`** — the first provider sets the opening price; everyone after deposits at the ratio already there, and the unmatched remainder is simply not taken.
+- **`remove_liquidity(provider, shares, min_a, min_b)`** — a proportional slice of both reserves.
+- **`sync()`** — folds in anything sent directly to the contract. Callable by anyone; it can only raise the reserves.
+- **Views** — `get_reserves`, `get_amount_out`, `get_amount_in`, `quote_liquidity`, `preview_remove`, `spot_price`.
+- **SEP-41 LP token** — `transfer`, `approve`, `allowance`, `transfer_from`, `burn`, `burn_from`.
 
-### Relay (`services/relay/`)
+### The anchor (`services/anchor`)
 
-- `GET /health` · `POST /advance` · `GET /advance/:account`, behind a CORS allowlist.
-- **`assess(txn, account, maxUsdc, alreadyOwed)`** — a pure function covered by 8 tests. The rules are deliberately narrow: it must be a deposit, the account must match, the anchor's status must be in the `FRONTABLE` set, the user must have no open advance, and the amount must not exceed what the anchor quoted.
-- A second ceiling **above** the contract's own limit: `MAX_ADVANCE_USDC`.
+Built around one observation: another anchor we integrated with kept answering
+`ok: true` and accepting deposits for hours while the process that submits
+payments had quietly died. So:
 
-### Frontend (`web/`)
+| The failure | What prevents it here |
+| --- | --- |
+| Work held in memory, lost on restart | Every job is a row in SQLite before it is acknowledged |
+| The same deposit paid twice | Jobs are claimed by an atomic status change; the loser does nothing |
+| A crash between submitting and recording | Each payout carries its id as a memo, so recovery asks the chain |
+| Silent permanent failure | Attempts are counted and backed off; exhaustion is reported |
+| "The API is up" read as "the anchor works" | `/health` returns **503** the moment the worker stops ticking |
 
-- **Bilingual — English by default, Turkish one click away.** The choice lives in `web/src/lib/i18n.tsx`, is remembered per browser, and covers every string including contract and anchor error messages.
-- **Three tabs:** Swap (TRY⇄USDC), Deposit (add liquidity), Withdraw.
-- **`DepositInstructionsCard`** — the anchor's IBAN, bank name, amount and **reference code**, each one copyable. The single manual step that exists in production is no longer hidden.
-- **`PoolInfo` + `PriceChart` + `PoolActivity`** — a Curve-style pool panel; the share-price history is read from on-chain events (`lib/history.ts`, with cursor pagination, which is mandatory because Soroban RPC `getEvents` silently returns 0 over a wide window).
-- **Wallet discipline:** `restoreWallet()` passes `skipRequestAccess: true`, `peekToken()` never asks for a signature, and SEP-10 is lazy. The wallet does **not** pop open on page load or on a poll.
-- **Anchor transparency:** `anchorError()` surfaces the anchor's own error text; `RampStatus` and `AnchorActivity` mirror the anchor's `status` and `message` verbatim; on `pending_trust` a button appears to add the missing USDC trustline.
+### The interface (`web/`)
+
+- **Bilingual, English by default.** Every string in `web/src/lib/i18n.ts` as `{ en, tr }` pairs; numbers, percent signs and dates follow the language, while amount parsing accepts either convention so switching languages never changes what a half-typed number means.
+- **Quotes come from the chain.** `get_amount_out` is simulated against the live contract rather than recomputed locally, so the number on screen is the number the swap produces.
+- **Price impact is named.** A thin pool costs far more than the fee, and the swap card says so before you sign, alongside the minimum you will receive.
+- **One RPC call per refresh.** Pool state is read straight out of the contract's instance storage with `getLedgerEntries` instead of five simulated calls — measured, 10 round trips down to 1.
 
 ---
 
-## 💻 Installation (local development)
+## 💻 Installation
 
 ### Prerequisites
 
 | Tool | Version |
 | --- | --- |
 | Rust | stable + the `wasm32v1-none` target |
-| `stellar-cli` | **≥ 25.2** (`stellar contract build` is required — plain `cargo build` fails on soroban-sdk 28) |
-| Node.js | ≥ 22 |
-
-### Everything in one block
+| `stellar-cli` | **≥ 25.2** (`stellar contract build`; plain `cargo build` fails on soroban-sdk 28) |
+| Node.js | ≥ 22 (the anchor uses the built-in `node:sqlite`) |
 
 ```bash
 # ── 0. Repository ──────────────────────────────────────────────────────────
-git clone <REPO_URL_PLACEHOLDER> stellar-usdc-vault
-cd stellar-usdc-vault
+git clone <REPO_URL_PLACEHOLDER> stelpools && cd stelpools
 
-# ── 1. Rust / Soroban toolchain ────────────────────────────────────────────
+# ── 1. Toolchain ───────────────────────────────────────────────────────────
 rustup target add wasm32v1-none
-cargo install --locked stellar-cli          # must be >= 25.2
-stellar --version
+cargo install --locked stellar-cli
 
-# ── 2. Test and build the contract ─────────────────────────────────────────
-cargo test -p usdc-vault                    # 43 tests
-stellar contract build                      # → target/wasm32v1-none/release/usdc_vault.wasm
+# ── 2. The pool: test, build ───────────────────────────────────────────────
+cargo test -p try-usdc-amm          # 26 tests
+stellar contract build              # → target/wasm32v1-none/release/try_usdc_amm.wasm
 
-# ── 3. (Optional) Deploy your own vault to testnet ─────────────────────────
-#     A vault is already live; do this only if you want your own copy:
-./scripts/deploy-testnet.sh                 # generates + funds admin/user keys, deploys
-cat deploy.testnet.env                      # VAULT_CONTRACT_ID is written here
+# ── 3. (Optional) deploy your own aTRY + pool ──────────────────────────────
+./scripts/deploy-amm.sh             # creates the aTRY asset, deploys the AMM
 
-# ── 4. Relay ───────────────────────────────────────────────────────────────
-cd services/relay
-npm ci
-cp .env.example .env
-#   → put RELAY_SECRET_KEY in .env (see "Environment variables" below)
-npm test                                    # 8 tests
-npm run dev                                 # http://localhost:8788
+# ── 4. The anchor ──────────────────────────────────────────────────────────
+cd services/anchor
+npm install
+cp .env.example .env                # three secrets; see below
+npm test                            # 25 tests, no network
+npm run dev                         # http://localhost:8790
 
-# ── 5. Frontend (in a second terminal) ─────────────────────────────────────
+# ── 5. The interface (second terminal) ─────────────────────────────────────
 cd web
-npm ci
+npm install
 cp .env.example .env
-#   → if you deployed your own vault in step 3, update VITE_VAULT_CONTRACT_ID
-npm run dev                                 # http://localhost:5173
+npm run dev                         # http://localhost:5173
 ```
 
-### Environment variables, step by step
-
-**`web/.env`** — all of this is public and gets baked into the build. **Never** put a secret key here.
+### The anchor's three secrets
 
 ```bash
-VITE_VAULT_CONTRACT_ID=CCEAE5OSVBV63UVH26JKQ5PWXQPOHTAGL3WSDCCG2GYF23DGWM77VOV2
-VITE_HORIZON_URL=https://horizon-testnet.stellar.org
-VITE_SOROBAN_RPC_URL=https://soroban-testnet.stellar.org
-VITE_NETWORK_PASSPHRASE=Test SDF Network ; September 2015
-VITE_RELAY_URL=http://localhost:8788
-VITE_ANCHOR_URL=https://tr-mock-anchor.fly.dev
-VITE_ANCHOR_HOME_DOMAIN=tr-mock-anchor.fly.dev
-VITE_USDC_ISSUER=GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5
+stellar keys generate anchor-signing --network testnet   # SEP10_SIGNING_SECRET
+stellar keys generate atry-issuer --network testnet --fund  # ATRY_ISSUER_SECRET
+openssl rand -hex 32                                     # JWT_SECRET
 ```
 
-**`services/relay/.env`** — server side; the secret key lives **here**.
-
-```bash
-PORT=8788
-LOG_LEVEL=info
-CORS_ORIGINS=http://localhost:5173,http://127.0.0.1:5173
-
-NETWORK_PASSPHRASE=Test SDF Network ; September 2015
-SOROBAN_RPC_URL=https://soroban-testnet.stellar.org
-VAULT_CONTRACT_ID=CCEAE5OSVBV63UVH26JKQ5PWXQPOHTAGL3WSDCCG2GYF23DGWM77VOV2
-
-RELAY_SECRET_KEY=S...            # ← the key the vault recognises via `set_relay`
-ANCHOR_URL=https://tr-mock-anchor.fly.dev
-MAX_ADVANCE_USDC=100
-```
-
-Generating the relay key and registering it with the vault:
-
-```bash
-stellar keys generate relay --network testnet --fund
-stellar keys address relay                                  # → RELAY (public)
-stellar keys show relay                                     # → RELAY_SECRET_KEY (into .env)
-
-# Register the relay and the advance limits with the vault (admin signature)
-stellar contract invoke --id "$VAULT_CONTRACT_ID" --source admin --network testnet -- \
-  set_relay --relay "$(stellar keys address relay)"
-
-stellar contract invoke --id "$VAULT_CONTRACT_ID" --source admin --network testnet -- \
-  set_advance_limits --max_advance 1000000000 --advance_cap 5000000000 --advance_fee_bps 25
-```
-
-> 🔒 **Security rule.** `RELAY_SECRET_KEY` exists only in `services/relay/.env`, which is gitignored. No secret key or webhook secret is ever defined with a `VITE_` prefix — Vite inlines every `VITE_*` variable into the browser bundle, so a secret placed there would hand everyone who opens the site the ability to drain the vault.
-
-### Preparing a wallet (first run)
-
-```bash
-# 1) Switch Freighter to testnet
-# 2) Fund the account
-curl "https://friendbot.stellar.org?addr=<YOUR_WALLET_ADDRESS>"
-# 3) Add the USDC trustline — the "Add USDC trustline" button in the UI does this too.
-#    Without it the anchor cannot pay you and the transaction waits in `pending_trust`.
-```
+The config refuses to start if the signing key and the issuer key are the same:
+a key that does both would let a login challenge double as a payment
+authorisation. None of them ever goes in a `VITE_` variable — Vite inlines
+those into the browser bundle.
 
 ---
 
@@ -336,57 +309,56 @@ curl "https://friendbot.stellar.org?addr=<YOUR_WALLET_ADDRESS>"
 
 | | |
 | --- | --- |
+| 🌐 **Live app** | [`stelpools.vercel.app`](https://stelpools.vercel.app/) |
+| 📜 **Pool contract** | [`CBX67JY3…AZTT`](https://stellar.expert/explorer/testnet/contract/CBX67JY3W2MRZZVT4KJKE6BQUAYME6WK6HZ74LDQP7O46QHUPWFAAZTT) |
+| 🪙 **aTRY asset** | [`aTRY` on Horizon](https://horizon-testnet.stellar.org/assets?asset_code=aTRY&asset_issuer=GA6OU57WZIIU47TT56FTNMIYL574WMJ6MDHSS3ION65GTTXLTX2VPUHS) |
 | 🎬 **Demo video** | `<DEMO_VIDEO_URL_PLACEHOLDER>` |
-| 🌐 **Live app** | [`Stelpools`](https://stelpools.vercel.app/) |
-| 📜 **Vault contract** | [stellar.expert `CCEAE5OS…VOV2`](https://stellar.expert/explorer/testnet/contract/CCEAE5OSVBV63UVH26JKQ5PWXQPOHTAGL3WSDCCG2GYF23DGWM77VOV2) |
-| 🏦 **Anchor** | [tr-mock-anchor.fly.dev](https://tr-mock-anchor.fly.dev) · [`/.well-known/stellar.toml`](https://tr-mock-anchor.fly.dev/.well-known/stellar.toml) |
-| 🖼️ **Screenshots** | `<SCREENSHOTS_PLACEHOLDER>` |
-
-### Running the tests
 
 ```bash
-cargo test -p usdc-vault                                  # 43 contract tests
-cd services/relay && npm test                             # 8 relay tests
-cd web && npx tsc -b --noEmit && npm run build            # typecheck + production build
+cargo test -p try-usdc-amm                       # 26 pool tests
+cd services/anchor && npm test                   # 25 anchor tests
+cd web && npx tsc -b --noEmit && npm run build
 ```
 
-### The tests that pin the behaviour down
+### Tests that pin the behaviour
 
-The tests say what they do in their names (`contracts/vault/src/test.rs`):
+- `a_bigger_trade_gets_a_worse_rate` — the curve charges for size, on purpose.
+- `the_product_never_falls` — `k` grows on every trade; that is the LP's return.
+- `the_quote_matches_what_the_swap_actually_pays` — the interface cannot lie.
+- `a_swap_below_the_callers_floor_is_refused` — `min_out` is real.
+- `a_later_deposit_cannot_move_the_price` — only the matching part is taken.
+- `a_donation_belongs_to_every_provider_once_it_is_synced` — the price cannot be pushed by a transfer.
+- `a_job_can_only_be_claimed_once` — the anchor cannot pay a deposit twice.
+- `a_payout_interrupted_mid_submit_is_found_again_after_a_restart` — crash recovery.
+- `alg_none_does_not_get_in` — the JWT algorithm is ours, not the token's.
 
-- `fronting_does_not_move_the_share_price` — fronting does not shift the LPs' price.
-- `a_write_off_hits_the_share_price_immediately` — losses are not deferred.
-- `supply_never_returns_to_zero_so_the_last_fee_always_has_an_owner` — the `LOCKED_SHARES` pattern.
-- `a_withdrawal_cannot_take_money_that_is_out_on_advance` — liquidity protection.
-- `previews_match_what_actually_happens` — the interface does not lie.
-- `a_position_can_be_transferred_and_the_recipient_can_withdraw_it` — the SEP-41 share really is transferable.
-- `only_the_relay_may_front_money` / `admin_actions_need_the_admin_signature` — authority boundaries.
+### Verified on testnet, end to end
 
-### Flows verified on testnet
-
-| Flow | Result |
+| Step | Result |
 | --- | --- |
-| SEP-10 → SEP-12 → SEP-38 → SEP-6 deposit | ✅ IBAN + reference code returned in 8.5 s |
-| Vault deposit → share transfer → withdraw | ✅ share price 1.0000000 → 1.0033333 |
-| Advance cycle (`open_advance` → `repay_advance`) | ✅ user received 10.198 USDC instantly; the price held flat while the debt was open and rose to 1.0015297 once closed |
-| USDC → TRY withdrawal (SEP-6 withdraw + memo'd payment) | ✅ |
+| Bank transfer → `aTRY` via our anchor | ✅ 1,000 TRY → 1,000 aTRY in **7 s** |
+| No trustline | ✅ parks in `pending_trust`, completes **by itself** when the trustline appears |
+| The same transfer reported twice | ✅ second is refused `409`; balance 700, not 1,400 |
+| Another account's transaction | ✅ `404`; without a token `401` |
+| Withdrawal | ✅ `aTRY` returned to the issuer is burned, supply reconciles exactly |
+| `aTRY → USDC` swap, user-signed | ✅ quote **matched execution to the stroop** |
+| `USDC → aTRY` swap | ✅ both directions, fee retained, `k` grew |
 
-> **Known condition (upstream sandbox).** `tr-mock-anchor` sometimes moves a deposit to `pending_anchor` and never completes the USDC payout step: its treasury (29,145 USDC), its XLM and its sequence number are all healthy, yet no Stellar payment is ever submitted. That is a fault in the anchor service itself — the code in this repository reports the anchor's status and message exactly as given rather than inventing one. The `open_advance` path exists precisely for delays like this: the user does not have to wait. Verified live: with the anchor stalled, the pool paid the user in **4.2 seconds**.
+Current pool: **5,229 USDC / 256,607 aTRY**, 1 USDC ≈ 49.07 aTRY. A 1,000 TRY
+swap costs 0.69% all-in; a 10,000 TRY swap costs 4.03%. That is the curve doing
+what it is supposed to, and the interface shows it before you sign.
 
 ---
 
 ## 🔮 Future Vision
 
-- **A real bank integration.** Replace the mock anchor with the Akbank API Portal "Account Movements" feed: the transfer is matched automatically by looking for the reference code in the `description` field. Because the seams are already SEP-6, neither the interface nor the contract changes at all.
-- **Collateralize the advance.** Today an advance is unsecured and trusts the relay. The roadmap: verify the anchor's signed attestation **on-chain**, so `open_advance` rests on a cryptographic proof rather than the relay's good behaviour.
-- **Distribute the relay.** Replace the single-key relay with a multisig or threshold-signed authorizer, removing the single point of failure.
-- **Multiple anchors and currencies.** The same vault can be fed by more than one anchor's TRY rail; EUR/GBP vaults follow from the same contract template.
-- **Governance and fee sharing.** Let `withdraw_fee_bps` and `advance_fee_bps` be set by an LP vote instead of a single admin.
-- **Composability of the share token.** `vUSDC` is already SEP-41 — the next step is making it usable as collateral in Soroban lending protocols.
-- **Mainnet + audit.** An independent security audit, then a controlled mainnet launch behind a gradually raised `deposit_cap`.
+- **A real bank feed.** Replace the anchor's one simulated endpoint with the Akbank API Portal "Account Movements" feed, matching by the reference in the description. Nothing else in the system changes — not the contract, not the interface.
+- **Proof of reserve.** The token supply is already on-chain; publishing a signed bank statement against it would close the one gap that still asks for trust.
+- **Multiple pairs.** The AMM is generic in its two tokens; EUR and GBP pools are the same contract with a different pair.
+- **Deeper liquidity, lower impact.** Price impact is the honest cost of a thin pool. It falls as the pool grows, and nothing else needs to change.
+- **Audit, then mainnet.**
 
 ---
-
 
 <div align="center">
 
