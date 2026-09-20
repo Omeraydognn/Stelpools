@@ -1,4 +1,4 @@
-import type { ButtonHTMLAttributes, InputHTMLAttributes, ReactNode } from "react";
+import { useId, type ButtonHTMLAttributes, type InputHTMLAttributes, type ReactNode } from "react";
 
 import { truncateAddress } from "../lib/format";
 import { useT } from "../lib/i18n";
@@ -20,7 +20,7 @@ export function Button({
   ...props
 }: ButtonProps) {
   const variants = {
-    primary: "bg-primary text-primary-foreground hover:opacity-90",
+    primary: "button-primary hover:opacity-90",
     secondary: "bg-secondary text-secondary-foreground hover:bg-accent",
     ghost: "bg-transparent text-foreground border border-border hover:bg-accent",
     destructive: "bg-destructive text-destructive-foreground hover:opacity-90",
@@ -57,7 +57,7 @@ export function Card({
   as?: "div" | "section" | "article" | "li";
 }) {
   return (
-    <Tag className={`rounded-[var(--radius)] border border-border bg-card p-4 ${className}`}>
+    <Tag className={`surface-card rounded-[var(--radius)] border border-border bg-card p-6 ${className}`}>
       {children}
     </Tag>
   );
@@ -155,7 +155,8 @@ type FieldProps = InputHTMLAttributes<HTMLInputElement> & {
 };
 
 export function Field({ label, hint, error, suffix, id, className = "", ...props }: FieldProps) {
-  const inputId = id ?? `field-${label.replace(/\s+/g, "-").toLowerCase()}`;
+  const generatedId = useId();
+  const inputId = id ?? generatedId;
   const describedBy = [error && `${inputId}-error`, hint && `${inputId}-hint`]
     .filter(Boolean)
     .join(" ");

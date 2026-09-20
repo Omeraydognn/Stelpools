@@ -1,38 +1,35 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { Header } from "./components/Header";
+import { Header, type View } from "./components/Header";
 import { VaultView } from "./components/VaultView";
 import { ErrorState } from "./components/ui";
-import { missingEnv } from "./lib/config";
+import { Home, InfoPage, Footer } from "./components/Marketing";
 import { useT } from "./lib/i18n";
+import { useCopy } from "./lib/useCopy";
 import type { Session } from "./lib/session";
 import { connectWallet, forgetWallet, isUserRejection, restoreWallet } from "./lib/wallet";
 
-type View = { name: "vault" } | { name: "about" };
-
-/** The URL hash is the router; the vault is the whole product for now. */
 function readHash(): View {
-  return window.location.hash.replace(/^#\/?/, "") === "about"
-    ? { name: "about" }
-    : { name: "vault" };
+  const page = window.location.hash.replace(/^#\/?/, "").split("/")[0];
+  return ["home", "vault", "about", "learn", "fees"].includes(page) ? page as View : "home";
 }
 
 export default function App() {
   const t = useT();
+  const c = useCopy();
   const [view, setView] = useState<View>(readHash);
   const [session, setSession] = useState<Session | null>(null);
   const [connecting, setConnecting] = useState(false);
   const [connectError, setConnectError] = useState<Error | null>(null);
 
   useEffect(() => {
-    const onHashChange = () => setView(readHash());
+    const onHashChange = () => {
+      if (window.location.hash === '#main') return;
+      setView(readHash());
+      window.scrollTo({ top: 0, behavior: 'instant' });
+    };
     window.addEventListener("hashchange", onHashChange);
     return () => window.removeEventListener("hashchange", onHashChange);
-  }, []);
-
-  const navigate = useCallback((next: View) => {
-    window.location.hash = next.name === "vault" ? "/vault" : "/about";
-    setView(next);
   }, []);
 
   const restored = useRef(false);
@@ -80,62 +77,19 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-dvh">
-      <a
-        href="#main"
-        className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:rounded-[var(--radius)] focus:bg-card focus:px-4 focus:py-2 focus:text-sm"
-      >
-        {t("app.skipToContent")}
-      </a>
-
-      <Header
-        session={session}
-        connecting={connecting}
-        onConnect={() => void onConnect()}
-        onDisconnect={onDisconnect}
-        view={view.name === "about" ? "about" : "vault"}
-        onNavigate={(next) => navigate({ name: next })}
-      />
-
-      <main id="main" className="mx-auto grid max-w-5xl gap-4 px-4 py-6 sm:px-6">
-        {missingEnv.length > 0 && (
-          <p
-            role="status"
-            className="rounded-[var(--radius)] border border-destructive/40 bg-destructive/10 p-3 text-xs"
-          >
-            {t("config.usingDefaults", { names: missingEnv.join(", ") })}
-          </p>
-        )}
-
-        {connectError && <ErrorState error={connectError} onRetry={() => void onConnect()} />}
-
-        {view.name === "vault" && <VaultView address={session?.address ?? null} />}
-
-        {view.name === "about" && (
-          <section aria-labelledby="about-heading" className="grid max-w-2xl gap-3">
-            <h2 id="about-heading" className="text-xl font-semibold tracking-tight">
-              {t("about.heading")}
-            </h2>
-            <p className="text-sm text-muted-foreground">{t("about.p1")}</p>
-            <p className="text-sm text-muted-foreground">{t("about.p2")}</p>
-            <p className="text-sm text-muted-foreground">
-              {t("about.contract")}{" "}
-              <a
-                href={`https://stellar.expert/explorer/testnet/contract/${import.meta.env.VITE_VAULT_CONTRACT_ID}`}
-                target="_blank"
-                rel="noreferrer"
-                className="tnum text-primary underline underline-offset-4"
-              >
-                {String(import.meta.env.VITE_VAULT_CONTRACT_ID).slice(0, 12)}…
-              </a>
-            </p>
-          </section>
-        )}
+    <div className="app-shell">
+      <a href="#main" className="skip-link">{t("app.skipToContent")}</a>
+      <Header session={session} connecting={connecting} onConnect={() => void onConnect()} onDisconnect={onDisconnect} view={view} />
+      {connectError && <div className="shell connect-error"><ErrorState error={connectError} onRetry={() => void onConnect()} /></div>}
+      <main id="main" tabIndex={-1}>
+        {view === 'home' && <Home />}
+        {view === 'vault' && <>
+          <div className="trading-intro"><div className="shell"><div><span className="eyebrow">{c('YOUR MONEY, IN MOTION', 'PARANIZ HAREKETE GEÇSİN')}</span><h1>{c('One pool.', 'Tek havuz.')} <em>{c('More possibilities.', 'Daha fazla olanak.')}</em></h1><p>{c('Buy, sell and provide liquidity. Directly on Stellar.', 'Alın, satın ve likidite sağlayın. Doğrudan Stellar üzerinde.')}</p></div><span className="testnet-chip"><span className="status-dot"/>Stellar Testnet</span></div></div>
+          <div className="shell trading-content"><div className="testnet-notice" role="status">{c('Testnet environment. Use test assets only — bank transfers are simulated.', 'Testnet ortamı. Yalnızca test varlıkları kullanın — banka transferleri simüle edilir.')}</div><VaultView address={session?.address ?? null} onConnect={() => void onConnect()} connecting={connecting}/></div>
+        </>}
+        {view !== 'home' && view !== 'vault' && <InfoPage key={view} view={view}/>}
       </main>
-
-      <footer className="mx-auto max-w-5xl px-4 pb-10 text-xs text-muted-foreground sm:px-6">
-        <p>{t("footer.note")}</p>
-      </footer>
+      <Footer />
     </div>
   );
 }

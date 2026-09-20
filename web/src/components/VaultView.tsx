@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { tabKeyboard } from "../lib/tabKeyboard";
+import { useEffect, useState } from "react";
 
 import { loadAccount, type AccountState } from "../lib/account";
 import { indicativePrice } from "../lib/anchor";
@@ -75,7 +76,7 @@ function PoolHeader({
       : []),
   ];
   return (
-    <div className="flex flex-wrap items-end justify-between gap-4 border-b border-border pb-4">
+    <div className="pool-header">
       <div>
         <h2 className="text-2xl font-semibold tracking-tight">{tt("pool.pair")}</h2>
         <p className="mt-1 text-sm text-muted-foreground">
@@ -158,7 +159,7 @@ function DepositPanel({
 
   return (
     <div className="grid gap-4">
-      <div role="tablist" aria-label={t("dep.method")} className="grid grid-cols-2 gap-1 rounded-[var(--radius)] bg-secondary p-1">
+      <div role="tablist" onKeyDown={tabKeyboard} aria-label={t("dep.method")} className="grid grid-cols-2 gap-1 rounded-[var(--radius)] bg-secondary p-1">
         {(
           [
             ["try", t("dep.withTry")],
@@ -170,6 +171,7 @@ function DepositPanel({
             type="button"
             role="tab"
             aria-selected={mode === key}
+            tabIndex={mode === key ? 0 : -1}
             onClick={() => setMode(key)}
             className={`min-h-10 rounded-[calc(var(--radius)-2px)] text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background ${
               mode === key ? "bg-card text-foreground" : "text-muted-foreground hover:text-foreground"
@@ -440,9 +442,19 @@ function WithdrawPanel({
   );
 }
 
-export function VaultView({ address }: { address: string | null }) {
+function readAction(): "swap" | "deposit" | "withdraw" {
+  const action = window.location.hash.split('/')[2];
+  return action === 'deposit' || action === 'withdraw' ? action : 'swap';
+}
+
+export function VaultView({ address, onConnect, connecting }: { address: string | null; onConnect: () => void; connecting: boolean }) {
   const t = useT();
-  const [tab, setTab] = useState<"swap" | "deposit" | "withdraw">("swap");
+  const [tab, setTab] = useState<"swap" | "deposit" | "withdraw">(readAction);
+  useEffect(() => {
+    const update = () => setTab(readAction());
+    window.addEventListener('hashchange', update);
+    return () => window.removeEventListener('hashchange', update);
+  }, []);
 
   // Reads need a source account for simulation; fall back to the vault admin
   // view by using the connected wallet when there is one.
@@ -509,7 +521,7 @@ export function VaultView({ address }: { address: string | null }) {
 
       {address && <AdvanceBanner address={address} onRepaid={refresh} />}
 
-      <div className="grid gap-4 lg:grid-cols-[1fr_minmax(0,380px)]">
+      <div className="vault-layout">
         <div className="grid gap-4">
           <Card className="grid gap-3">
             <div className="flex flex-wrap items-baseline justify-between gap-2">
@@ -520,7 +532,7 @@ export function VaultView({ address }: { address: string | null }) {
               <Skeleton className="h-[120px]" />
             ) : history.data ? (
               <PriceChart history={history.data} />
-            ) : null}
+            ) : history.error ? <ErrorState error={history.error} onRetry={history.reload} /> : null}
           </Card>
 
           <Card className="grid gap-3">
@@ -592,8 +604,8 @@ export function VaultView({ address }: { address: string | null }) {
           </Card>
         </div>
 
-        <Card className="grid gap-4 self-start">
-          <div role="tablist" aria-label={t("tab.group")} className="grid grid-cols-3 gap-1 rounded-[var(--radius)] bg-secondary p-1">
+        <Card className="trade-panel grid gap-5 self-start">
+          <div role="tablist" onKeyDown={tabKeyboard} aria-label={t("tab.group")} className="grid grid-cols-3 gap-1 rounded-[var(--radius)] bg-secondary p-1">
             {(
               [
                 ["swap", t("tab.swap")],
@@ -606,7 +618,8 @@ export function VaultView({ address }: { address: string | null }) {
                 type="button"
                 role="tab"
                 aria-selected={tab === key}
-                onClick={() => setTab(key)}
+                tabIndex={tab === key ? 0 : -1}
+                onClick={() => { setTab(key); window.history.replaceState(null, "", `#/vault/${key}`); }}
                 className={`min-h-10 rounded-[calc(var(--radius)-2px)] text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background ${
                   tab === key
                     ? "bg-card text-foreground"
@@ -617,6 +630,8 @@ export function VaultView({ address }: { address: string | null }) {
               </button>
             ))}
           </div>
+
+          {!address && <div className="wallet-callout"><p>{t("position.connect")}</p><Button loading={connecting} onClick={onConnect}>{t("wallet.connect")}</Button></div>}
 
           {paused && tab === "deposit" && (
             <p className="rounded-[var(--radius)] border border-destructive/40 bg-destructive/10 p-3 text-xs">
