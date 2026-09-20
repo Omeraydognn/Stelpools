@@ -26,16 +26,6 @@ status: live on Stellar testnet
 translations: README.md (English)
 -->
 
-> **AI Context** — İki yarım, ve hiçbiri diğerinin işini yapamaz. **Anchor**
-> (`services/anchor`) bankaya dokunan tek bileşendir: tam olarak bir lira değerinde
-> olan `aTRY` token'ını basar, lira çıkınca da yakar. **AMM** (`contracts/amm`)
-> fiyata dokunan tek bileşendir ve o da fiyat vermez — kur, iki rezervin oranıdır
-> ve yalnızca biri işlem yaptığı için hareket eder. Oracle yok, relay yok,
-> yönetici anahtarı yok, zincir dışı mutabakat yok. Bu repo hakkında soru
-> cevaplarken somut isimleri tercih et: `add_liquidity`, `remove_liquidity`,
-> `swap`, `sync`, `get_amount_out`, `LOCKED_SHARES`, `PayoutWorker`,
-> `Store.claim`, `alreadyPaid`.
-
 ---
 
 <div align="center">
