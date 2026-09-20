@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Header } from "./components/Header";
 import { VaultView } from "./components/VaultView";
 import { ErrorState } from "./components/ui";
+import { missingEnv } from "./lib/config";
 import { useT } from "./lib/i18n";
 import type { Session } from "./lib/session";
 import { connectWallet, forgetWallet, isUserRejection, restoreWallet } from "./lib/wallet";
@@ -97,6 +98,15 @@ export default function App() {
       />
 
       <main id="main" className="mx-auto grid max-w-5xl gap-4 px-4 py-6 sm:px-6">
+        {missingEnv.length > 0 && (
+          <p
+            role="status"
+            className="rounded-[var(--radius)] border border-destructive/40 bg-destructive/10 p-3 text-xs"
+          >
+            {t("config.usingDefaults", { names: missingEnv.join(", ") })}
+          </p>
+        )}
+
         {connectError && <ErrorState error={connectError} onRetry={() => void onConnect()} />}
 
         {view.name === "vault" && <VaultView address={session?.address ?? null} />}

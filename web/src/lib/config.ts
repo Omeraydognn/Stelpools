@@ -1,21 +1,50 @@
-const required = (name: string, value: string | undefined): string => {
-  if (!value) throw new Error(`Missing ${name}. Copy .env.example to .env.`);
-  return value;
-};
+/**
+ * Testnet defaults for everything.
+ *
+ * A missing variable used to throw while this module was being imported,
+ * which happens before anything can render — the page just stayed black. The
+ * app is testnet-only and every one of these values is public, so falling
+ * back to the deployed vault is strictly better than showing nothing. When a
+ * fallback is used the app says so rather than pretending it was configured.
+ */
+const DEFAULTS = {
+  vaultId: "CCEAE5OSVBV63UVH26JKQ5PWXQPOHTAGL3WSDCCG2GYF23DGWM77VOV2",
+  rpcUrl: "https://soroban-testnet.stellar.org",
+  networkPassphrase: "Test SDF Network ; September 2015",
+  horizonUrl: "https://horizon-testnet.stellar.org",
+  anchorUrl: "https://tr-mock-anchor.fly.dev",
+  anchorHomeDomain: "tr-mock-anchor.fly.dev",
+  usdcIssuer: "GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5",
+} as const;
+
+/** Variables that were not set and fell back to a default. */
+export const missingEnv: string[] = [];
+
+function fromEnv<K extends keyof typeof DEFAULTS>(name: string, key: K): string {
+  const value = import.meta.env[name as keyof ImportMetaEnv] as string | undefined;
+  if (value) return value;
+  missingEnv.push(name);
+  return DEFAULTS[key];
+}
 
 export const config = {
-  vaultId: required("VITE_VAULT_CONTRACT_ID", import.meta.env.VITE_VAULT_CONTRACT_ID),
-  rpcUrl: import.meta.env.VITE_SOROBAN_RPC_URL ?? "https://soroban-testnet.stellar.org",
-  networkPassphrase:
-    import.meta.env.VITE_NETWORK_PASSPHRASE ?? "Test SDF Network ; September 2015",
-  horizonUrl: import.meta.env.VITE_HORIZON_URL ?? "https://horizon-testnet.stellar.org",
+  vaultId: fromEnv("VITE_VAULT_CONTRACT_ID", "vaultId"),
+  rpcUrl: fromEnv("VITE_SOROBAN_RPC_URL", "rpcUrl"),
+  networkPassphrase: fromEnv("VITE_NETWORK_PASSPHRASE", "networkPassphrase"),
+  horizonUrl: fromEnv("VITE_HORIZON_URL", "horizonUrl"),
   /** Optional: the advance relay. Without it, instant fills are hidden. */
   relayUrl: (import.meta.env.VITE_RELAY_URL ?? "").replace(/\/$/, ""),
-  anchorUrl: (import.meta.env.VITE_ANCHOR_URL ?? "https://tr-mock-anchor.fly.dev").replace(/\/$/, ""),
-  anchorHomeDomain: import.meta.env.VITE_ANCHOR_HOME_DOMAIN ?? "tr-mock-anchor.fly.dev",
-  usdcIssuer:
-    import.meta.env.VITE_USDC_ISSUER ?? "GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5",
+  anchorUrl: fromEnv("VITE_ANCHOR_URL", "anchorUrl").replace(/\/$/, ""),
+  anchorHomeDomain: fromEnv("VITE_ANCHOR_HOME_DOMAIN", "anchorHomeDomain"),
+  usdcIssuer: fromEnv("VITE_USDC_ISSUER", "usdcIssuer"),
   explorer: "https://stellar.expert/explorer/testnet",
 } as const;
 
 export const isTestnet = config.networkPassphrase.includes("Test SDF Network");
+
+if (missingEnv.length > 0) {
+  console.warn(
+    `[config] Using testnet defaults for: ${missingEnv.join(", ")}. ` +
+      "Set these in your .env (locally) or in the host's environment variables (when deployed).",
+  );
+}

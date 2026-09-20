@@ -148,6 +148,12 @@ export const dict = {
     tr: "Stellar testnet · USDC kasası Soroban'da, TL giriş/çıkışı ve fiyatlama tr-mock-anchor üzerinden. Gerçek para hareket etmez.",
   },
 
+  // ---- configuration ----
+  "config.usingDefaults": {
+    en: "Environment variables not set: {names}. The app is running on the public testnet defaults.",
+    tr: "Tanımlı olmayan ortam değişkenleri: {names}. Uygulama herkese açık testnet varsayılanlarıyla çalışıyor.",
+  },
+
   // ---- generic ui ----
   "ui.wentWrong": { en: "Something went wrong", tr: "Bir şeyler ters gitti" },
   "ui.retry": { en: "Try again", tr: "Tekrar dene" },
