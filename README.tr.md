@@ -37,7 +37,7 @@ translations: README.md (English)
 
 ### Stellar TRY ⇄ USDC Otomatik Piyasa Yapıcı
 
-**Stelpools, Türk lirası için zincir üstünde bir likidite havuzudur: bankadaki liranız bir jetona dönüşür, havuz onu dolarla takas eder ve kur havuzun kendi rezervlerinden çıkar — bir borsadan, bir masadan ya da birinin verdiği fiyattan değil.**
+**Stelpools, Türk lirası için zincir üstünde bir likidite havuzudur: bankaya yatırdığınız her lira, kendi cüzdanınıza kuruşu kuruşuna dijital lira olarak gelir; havuz onu dolara çevirir; ve kuru kimse belirlemez — havuzun kendi rezervleri belirler.**
 
 Teknik karşılığı: kendi yazdığımız SEP-6 anchor lira karşılığında birebir `aTRY`
 basar, sabit-çarpımlı bir Soroban havuzu da onu USDC karşısında fiyatlar. Kuru
