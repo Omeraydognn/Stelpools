@@ -15,7 +15,7 @@ lp_token: spLP — SEP-41, 7 decimals, freely transferable
 pricing: constant product (x*y=k), 30 bps fee, no oracle and no external price feed
 admin_surface: none — the pool contract has no admin, no pause, no fee setter and no allowlist
 seps_implemented: SEP-1, SEP-6, SEP-10, SEP-12, SEP-41
-services: services/anchor (Node + Express + SQLite, issues aTRY)
+services: services/anchor (Node + Express + Postgres, issues aTRY)
 frontend: React 19 + Vite 8 + TypeScript 6 + Tailwind v4
 ui_languages: English (default), Turkish
 test_counts: 26 contract tests, 32 anchor tests
@@ -37,7 +37,7 @@ translations: README.tr.md (Turkish)
 
 ### Stellar TRY ⇄ USDC Automated Market Maker
 
-**Stelpools turns the Turkish lira in your bank account into digital dollars in your own wallet — without going through an exchange.**
+**Stelpools is an on-chain liquidity pool for the Turkish lira: your lira becomes a token, the pool trades it for dollars, and the rate comes out of the pool's own reserves — not from an exchange, a desk, or anybody's quote.**
 
 Under the hood: a purpose-built SEP-6 anchor issues `aTRY` one-for-one against lira,
 and a constant-product Soroban pool prices it against USDC. Nothing quotes the rate;
@@ -110,7 +110,7 @@ Turning Turkish lira into on-chain dollars runs into four separate frictions:
 | Touches a price | never | **yes**, and only as a ratio |
 | Holds an admin key | issuer key, to mint and burn | **none at all** |
 | Can be wrong about | whether lira arrived | nothing — it is arithmetic |
-| Written in | Node + Express + SQLite | Rust / Soroban |
+| Written in | Node + Express + Postgres | Rust / Soroban |
 
 Keeping them apart is the point. The anchor cannot move a price and the pool cannot lie about a bank transfer, because neither has any way to.
 
@@ -120,7 +120,7 @@ Keeping them apart is the point. The anchor cannot move a price and the pool can
 | --- | --- | --- |
 | **AMM** | `contracts/amm/` | Rust · `soroban-sdk 28.0.0` · `wasm32v1-none` |
 | **LP token** | `contracts/amm/src/token_impl.rs` | SEP-41 · `spLP` · 7 decimals |
-| **Anchor** | `services/anchor/` | Node 22+ · Express 5 · SQLite · Zod · Pino |
+| **Anchor** | `services/anchor/` | Node 22+ · Express 5 · Postgres (`pg`) · Zod · Pino |
 | **Frontend** | `web/` | React 19 · Vite 8 · TypeScript 6 · Tailwind v4 |
 | **Wallet** | `web/src/lib/wallet.ts` | `@creit.tech/stellar-wallets-kit` 2.6 |
 
@@ -155,14 +155,14 @@ sequenceDiagram
     Note over U,P: 2 — the token finds its price. No server in this half.
     U->>W: "Swap it for USDC"
     W->>P: simulate get_amount_out(aTRY, 1000)
-    P-->>W: 20.2409 USDC · impact 0.69%
+    P-->>W: 21.2636 USDC · impact 0.69%
     W-->>U: quote, price impact, and the minimum you will accept
     U->>K: sign swap(aTRY, 1000, min_out)
     K->>P: the call, straight to the contract
     P->>P: out = (in·9970·reserve_out) / (reserve_in·10000 + in·9970)
     P->>P: refuse if out < min_out
     P->>S: USDC → the user, aTRY → the reserves
-    S-->>U: 20.2409 USDC
+    S-->>U: 21.2636 USDC
     Note over P: 30 bps stayed behind. k grew. Every LP is worth more.
 ```
 
@@ -226,11 +226,12 @@ payments had quietly died. So:
 
 | The failure | What prevents it here |
 | --- | --- |
-| Work held in memory, lost on restart | Every job is a row in SQLite before it is acknowledged |
+| Work held in memory, lost on restart | Every job is a row in Postgres before it is acknowledged |
 | The same deposit paid twice | Jobs are claimed by an atomic status change; the loser does nothing |
 | A crash between submitting and recording | Each payout carries its id as a memo, so recovery asks the chain |
 | Silent permanent failure | Attempts are counted and backed off; exhaustion is reported |
-| "The API is up" read as "the anchor works" | `/health` returns **503** the moment the worker stops ticking |
+| A job nobody is polling for, on a host with no timer | The poll that *is* watching turns the crank, and `POST /worker/tick` is the backstop for the rest |
+| "The API is up" read as "the anchor works" | `/health` is **503** unless the payout side is genuinely fine: with a timer, that means it has ticked recently; on a function host, that the last turn of the crank did not fail — and either way the database is reached, not assumed |
 
 ### The interface (`web/`)
 
@@ -249,7 +250,8 @@ payments had quietly died. So:
 | --- | --- |
 | Rust | stable + the `wasm32v1-none` target |
 | `stellar-cli` | **≥ 25.2** (`stellar contract build`; plain `cargo build` fails on soroban-sdk 28) |
-| Node.js | ≥ 22 (the anchor uses the built-in `node:sqlite`) |
+| Node.js | ≥ 22 |
+| Postgres | ≥ 14, for the anchor's ledger. `docker run -e POSTGRES_PASSWORD=… -p 5432:5432 postgres` is enough |
 
 ```bash
 # ── 0. Repository ──────────────────────────────────────────────────────────
@@ -270,7 +272,7 @@ stellar contract build              # → target/wasm32v1-none/release/try_usdc_
 cd services/anchor
 npm install
 cp .env.example .env                # three secrets; see below
-npm test                            # 25 tests, no network
+npm test                            # 22 tests offline; 32 with TEST_DATABASE_URL
 npm run dev                         # http://localhost:8790
 
 # ── 5. The interface (second terminal) ─────────────────────────────────────
@@ -306,7 +308,7 @@ those into the browser bundle.
 
 ```bash
 cargo test -p try-usdc-amm                       # 26 pool tests
-cd services/anchor && npm test                   # 32 anchor tests
+cd services/anchor && npm test                   # 32 anchor tests (needs TEST_DATABASE_URL for 10 of them)
 cd web && npx tsc -b --noEmit && npm run build
 ```
 
@@ -319,7 +321,8 @@ cd web && npx tsc -b --noEmit && npm run build
 - `a_later_deposit_cannot_move_the_price` — only the matching part is taken.
 - `a_donation_belongs_to_every_provider_once_it_is_synced` — the price cannot be pushed by a transfer.
 - `a_job_can_only_be_claimed_once` — the anchor cannot pay a deposit twice.
-- `a_payout_interrupted_mid_submit_is_found_again_after_a_restart` — crash recovery.
+- `a_payout_interrupted_mid_submit_is_found_again_later` — crash recovery, resolved by asking the chain.
+- `a_withdrawal_waiting_on_its_burn_is_driven_by_a_poll` — with no timer, the poll is what finishes it.
 - `alg_none_does_not_get_in` — the JWT algorithm is ours, not the token's.
 
 ### Verified on testnet, end to end
@@ -334,8 +337,8 @@ cd web && npx tsc -b --noEmit && npm run build
 | `aTRY → USDC` swap, user-signed | ✅ quote **matched execution to the stroop** |
 | `USDC → aTRY` swap | ✅ both directions, fee retained, `k` grew |
 
-Current pool: **5,229 USDC / 256,607 aTRY**, 1 USDC ≈ 49.07 aTRY. A 1,000 TRY
-swap costs 0.69% all-in; a 10,000 TRY swap costs 4.03%. That is the curve doing
+Current pool: **5,429 USDC / 253,549 aTRY**, 1 USDC ≈ 46.70 aTRY. A 1,000 TRY
+swap costs 0.69% all-in; a 10,000 TRY swap costs 4.07%. That is the curve doing
 what it is supposed to, and the interface shows it before you sign.
 
 ---

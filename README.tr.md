@@ -15,7 +15,7 @@ lp_token: spLP — SEP-41, 7 decimals, freely transferable
 pricing: constant product (x*y=k), 30 bps fee, no oracle and no external price feed
 admin_surface: none — the pool contract has no admin, no pause, no fee setter and no allowlist
 seps_implemented: SEP-1, SEP-6, SEP-10, SEP-12, SEP-41
-services: services/anchor (Node + Express + SQLite, issues aTRY)
+services: services/anchor (Node + Express + Postgres, issues aTRY)
 frontend: React 19 + Vite 8 + TypeScript 6 + Tailwind v4
 ui_languages: English (default), Turkish
 test_counts: 26 contract tests, 32 anchor tests
@@ -37,7 +37,7 @@ translations: README.md (English)
 
 ### Stellar TRY ⇄ USDC Otomatik Piyasa Yapıcı
 
-**Stelpools, banka hesabınızdaki Türk lirasını bir borsaya uğramadan doğrudan kendi cüzdanınızdaki dijital dolara çevirmenizi sağlar.**
+**Stelpools, Türk lirası için zincir üstünde bir likidite havuzudur: bankadaki liranız bir jetona dönüşür, havuz onu dolarla takas eder ve kur havuzun kendi rezervlerinden çıkar — bir borsadan, bir masadan ya da birinin verdiği fiyattan değil.**
 
 Teknik karşılığı: kendi yazdığımız SEP-6 anchor lira karşılığında birebir `aTRY`
 basar, sabit-çarpımlı bir Soroban havuzu da onu USDC karşısında fiyatlar. Kuru
@@ -110,7 +110,7 @@ Türk lirasını zincir üstü dolara çevirmenin önünde dört ayrı sürtünm
 | Fiyata dokunur mu | asla | **evet**, yalnızca bir oran olarak |
 | Yönetici anahtarı | ihraç ve yakma için ihraççı anahtarı | **hiç yok** |
 | Neyde yanılabilir | liranın gelip gelmediğinde | hiçbir şeyde — o aritmetik |
-| Dili | Node + Express + SQLite | Rust / Soroban |
+| Dili | Node + Express + Postgres | Rust / Soroban |
 
 Onları ayrı tutmak işin özü. Anchor bir fiyatı oynatamaz, havuz da bir banka havalesi hakkında yalan söyleyemez — çünkü ikisinin de buna imkânı yok.
 
@@ -120,7 +120,7 @@ Onları ayrı tutmak işin özü. Anchor bir fiyatı oynatamaz, havuz da bir ban
 | --- | --- | --- |
 | **AMM** | `contracts/amm/` | Rust · `soroban-sdk 28.0.0` · `wasm32v1-none` |
 | **LP token** | `contracts/amm/src/token_impl.rs` | SEP-41 · `spLP` · 7 decimals |
-| **Anchor** | `services/anchor/` | Node 22+ · Express 5 · SQLite · Zod · Pino |
+| **Anchor** | `services/anchor/` | Node 22+ · Express 5 · Postgres (`pg`) · Zod · Pino |
 | **Frontend** | `web/` | React 19 · Vite 8 · TypeScript 6 · Tailwind v4 |
 | **Wallet** | `web/src/lib/wallet.ts` | `@creit.tech/stellar-wallets-kit` 2.6 |
 
@@ -155,14 +155,14 @@ sequenceDiagram
     Note over U,P: 2 — token fiyatını buluyor. Bu yarımda sunucu yok.
     U->>W: "USDC'ye çevir"
     W->>P: simulate get_amount_out(aTRY, 1000)
-    P-->>W: 20,2409 USDC · etki %0,69
+    P-->>W: 21,2636 USDC · etki %0,69
     W-->>U: kotasyon, fiyat etkisi ve kabul edeceğiniz alt sınır
     U->>K: swap(aTRY, 1000, min_out) imzala
     K->>P: çağrı, doğrudan kontrata
     P->>P: out = (in·9970·reserve_out) / (reserve_in·10000 + in·9970)
     P->>P: out < min_out ise reddet
     P->>S: USDC → kullanıcı, aTRY → rezervler
-    S-->>U: 20.2409 USDC
+    S-->>U: 21,2636 USDC
     Note over P: 30 bps geride kaldı. k büyüdü. Her LP daha değerli.
 ```
 
@@ -225,11 +225,12 @@ verip mevduat kabul etmeye devam etti. Bu yüzden:
 
 | O arıza | Buradaki önlemi |
 | --- | --- |
-| İş bellekte, yeniden başlatmada kayıp | Her iş, kabul edilmeden önce SQLite'ta bir satır |
+| İş bellekte, yeniden başlatmada kayıp | Her iş, kabul edilmeden önce Postgres'te bir satır |
 | Aynı mevduatın iki kez ödenmesi | İşler atomik durum değişimiyle sahiplenilir; kaybeden hiçbir şey yapmaz |
 | Gönderimle kayıt arasında çökme | Her ödeme kendi id'sini memo olarak taşır, kurtarma zincire sorar |
 | Sessiz kalıcı başarısızlık | Denemeler sayılır ve geri çekilir; tükendiğinde bildirilir |
-| "API ayakta"nın "anchor çalışıyor" sanılması | Worker durduğu anda `/health` **503** döner |
+| Zamanlayıcısı olmayan sunucuda kimsenin beklemediği iş | İzleyen poll turu çevirir; geri kalanı için `POST /worker/tick` yedek mekanizmadır |
+| "API ayakta"nın "anchor çalışıyor" sanılması | Ödeme tarafı gerçekten iyi değilse `/health` **503** döner: zamanlayıcı varsa yakın zamanda tur attıysa, fonksiyon sunucusunda ise son turun hata vermediyse — ve her iki durumda da veritabanına varsayarak değil, gerçekten ulaşılıyorsa |
 
 ### Arayüz (`web/`)
 
@@ -248,7 +249,8 @@ verip mevduat kabul etmeye devam etti. Bu yüzden:
 | --- | --- |
 | Rust | stable + `wasm32v1-none` hedefi |
 | `stellar-cli` | **≥ 25.2** (`stellar contract build`; düz `cargo build` soroban-sdk 28'de başarısız olur) |
-| Node.js | ≥ 22 (anchor yerleşik `node:sqlite` kullanır) |
+| Node.js | ≥ 22 |
+| Postgres | ≥ 14, anchor'ın defteri için. `docker run -e POSTGRES_PASSWORD=… -p 5432:5432 postgres` yeter |
 
 ```bash
 # ── 0. Repo ────────────────────────────────────────────────────────────────
@@ -269,7 +271,7 @@ stellar contract build              # → target/wasm32v1-none/release/try_usdc_
 cd services/anchor
 npm install
 cp .env.example .env                # üç gizli anahtar; aşağıya bakın
-npm test                            # 25 test, ağ gerekmez
+npm test                            # çevrimdışı 22 test; TEST_DATABASE_URL ile 32
 npm run dev                         # http://localhost:8790
 
 # ── 5. Arayüz (ikinci terminalde) ──────────────────────────────────────────
@@ -305,7 +307,7 @@ paketinin içine gömer.
 
 ```bash
 cargo test -p try-usdc-amm                       # 26 havuz testi
-cd services/anchor && npm test                   # 32 anchor testi
+cd services/anchor && npm test                   # 32 anchor testi (10'u için TEST_DATABASE_URL gerekir)
 cd web && npx tsc -b --noEmit && npm run build
 ```
 
@@ -318,7 +320,8 @@ cd web && npx tsc -b --noEmit && npm run build
 - `a_later_deposit_cannot_move_the_price` — yalnızca eşleşen kısım alınır.
 - `a_donation_belongs_to_every_provider_once_it_is_synced` — fiyat transferle itilemez.
 - `a_job_can_only_be_claimed_once` — anchor bir mevduatı iki kez ödeyemez.
-- `a_payout_interrupted_mid_submit_is_found_again_after_a_restart` — çökme kurtarması.
+- `a_payout_interrupted_mid_submit_is_found_again_later` — çökme kurtarması; cevabı zincire sorar.
+- `a_withdrawal_waiting_on_its_burn_is_driven_by_a_poll` — zamanlayıcı yokken çekimi bitiren şey poll'dür.
 - `alg_none_does_not_get_in` — JWT algoritması bizim, token'ın değil.
 
 ### Testnet üzerinde uçtan uca doğrulandı
@@ -333,8 +336,8 @@ cd web && npx tsc -b --noEmit && npm run build
 | `aTRY → USDC` takası, kullanıcı imzalı | ✅ kotasyon **stroop'una kadar gerçekleşenle aynı** |
 | `USDC → aTRY` takası | ✅ iki yön de çalışır, komisyon kalır, `k` büyür |
 
-Mevcut havuz: **5.229 USDC / 256.607 aTRY**, 1 USDC ≈ 49,07 aTRY. 1.000 TL'lik
-bir takas her şey dâhil %0,69, 10.000 TL'lik bir takas %4,03 tutar. Bu, eğrinin
+Mevcut havuz: **5.429 USDC / 253.549 aTRY**, 1 USDC ≈ 46,70 aTRY. 1.000 TL'lik
+bir takas her şey dâhil %0,69, 10.000 TL'lik bir takas %4,07 tutar. Bu, eğrinin
 yapması gerekeni yapmasıdır ve arayüz bunu imzadan önce gösterir.
 
 ---
