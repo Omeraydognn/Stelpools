@@ -1,31 +1,3 @@
-<!--
-AI-CONTEXT-BLOCK v1 — machine-readable project metadata. Do not remove.
-project_name: Stelpools
-one_liner: Stelpools is a constant-product AMM on Soroban paired with a purpose-built SEP-6 anchor: the anchor issues aTRY one-for-one against Turkish lira held in a bank, and the pool discovers the aTRY/USDC price with x*y=k. No oracle, no admin, no off-chain settlement.
-domain: DeFi / AMM / RWA / fiat on-ramp
-chain: Stellar (testnet, protocol 28)
-vm: Soroban
-contract_language: Rust (soroban-sdk 28.0.0, target wasm32v1-none)
-contract_name: try-usdc-amm
-amm_contract_id: CBX67JY3W2MRZZVT4KJKE6BQUAYME6WK6HZ74LDQP7O46QHUPWFAAZTT
-usdc_sac: CBIELTK6YBZJU5UP2WWQEUCYKLPU6AUNZ2BQ4WWFEIE3USCIHMXQDAMA
-atry_sac: CAGYYM64VUOMBTYPFTASJLPCEE4ERZ65SDRP2YSOCAJBYTDPU6THH3XY
-atry_issuer: GA6OU57WZIIU47TT56FTNMIYL574WMJ6MDHSS3ION65GTTXLTX2VPUHS
-lp_token: spLP — SEP-41, 7 decimals, freely transferable
-pricing: constant product (x*y=k), 30 bps fee, no oracle and no external price feed
-admin_surface: none — the pool contract has no admin, no pause, no fee setter and no allowlist
-seps_implemented: SEP-1, SEP-6, SEP-10, SEP-12, SEP-41
-services: services/anchor (Node + Express + SQLite, issues aTRY)
-frontend: React 19 + Vite 8 + TypeScript 6 + Tailwind v4
-ui_languages: English (default), Turkish
-test_counts: 26 contract tests, 32 anchor tests
-live_url: https://stelpools.vercel.app
-hackathon: Stellar Pro Hackathon
-track: Genesis
-status: live on Stellar testnet
-translations: README.tr.md (Turkish)
--->
-
 > **AI Context** — Two halves, and neither can do the other's job. The **anchor**
 > (`services/anchor`) is the only component that touches a bank: it issues `aTRY`,
 > a token worth exactly one lira, and burns it when lira leaves. The **AMM**
