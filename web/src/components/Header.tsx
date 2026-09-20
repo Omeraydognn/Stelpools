@@ -18,7 +18,6 @@ export function Header({ session, connecting, onConnect, onDisconnect, view }: {
     <div className={`shell header-inner${session ? " is-connected" : ""}`}>
       <a className="wordmark" href="#/home" aria-label="Stelpools" onClick={() => setOpen(false)}>
         <img src="/logo-dark-bg.png" alt="Stelpools" width="180" height="44" />
-        <span>powered by Stellar</span>
       </a>
       <nav className="desktop-nav" aria-label={t("nav.label")}>
         {labels.map(([key, label]) => <a key={key} href={`#/${key}`} aria-current={view === key ? "page" : undefined}>{label}</a>)}
