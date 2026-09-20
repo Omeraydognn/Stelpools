@@ -6,6 +6,7 @@ import { Store } from "../src/db.js";
 import { accountOf, issue, verify } from "../src/jwt.js";
 import { code, quoteDeposit, quoteWithdraw, reference } from "../src/seps.js";
 import { isMissingTrustline, isRetryable, memoFor } from "../src/stellar.js";
+import { shouldDrive } from "../src/worker.js";
 
 const SECRET = "a".repeat(40);
 const ACCOUNT = "GAJYF5I7IJLPLIZKLUVNZOH5TPL2XLQYTENZT4RI7X6HBRDJ5NKPYJBP";
@@ -201,6 +202,50 @@ test("the watcher remembers where it stopped reading", needsDb, async () => {
   await s.setCursor("burns", "12345-2");
   assert.equal(await s.cursor("burns"), "12345-2");
   await s.close();
+});
+
+// --------------------------------------------------------- driving the work
+//
+// On a host with no process between requests, the requests are the only thing
+// that turns the crank. Getting this set wrong does not fail loudly: the
+// anchor keeps answering `ok` while a transaction never finishes. It already
+// cost us a live withdrawal, so it is pinned here.
+
+test("a withdrawal waiting on its burn is driven by a poll", () => {
+  // The aTRY may already be on the ledger; collectBurns is the only thing
+  // that will notice, and in request mode only a poll will call it.
+  assert.equal(
+    shouldDrive({ kind: "withdrawal", status: "pending_user_transfer_start" }, "request"),
+    true,
+  );
+});
+
+test("a deposit waiting on a bank is not, because nothing is due", () => {
+  assert.equal(
+    shouldDrive({ kind: "deposit", status: "pending_user_transfer_start" }, "request"),
+    false,
+  );
+});
+
+test("a payout mid-flight is driven, whichever way it is going", () => {
+  for (const status of ["pending_anchor", "pending_trust", "submitting"]) {
+    assert.equal(shouldDrive({ kind: "deposit", status }, "request"), true, status);
+    assert.equal(shouldDrive({ kind: "withdrawal", status }, "request"), true, status);
+  }
+});
+
+test("a finished transaction answers without doing any work", () => {
+  for (const status of ["completed", "error", "refunded"]) {
+    assert.equal(shouldDrive({ kind: "withdrawal", status }, "request"), false, status);
+  }
+});
+
+test("with a timer running, a poll never drives anything", () => {
+  assert.equal(
+    shouldDrive({ kind: "withdrawal", status: "pending_user_transfer_start" }, "timer"),
+    false,
+  );
+  assert.equal(shouldDrive({ kind: "deposit", status: "pending_anchor" }, "timer"), false);
 });
 
 // ------------------------------------------------------------------ money

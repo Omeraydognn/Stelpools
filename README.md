@@ -18,7 +18,7 @@ seps_implemented: SEP-1, SEP-6, SEP-10, SEP-12, SEP-41
 services: services/anchor (Node + Express + SQLite, issues aTRY)
 frontend: React 19 + Vite 8 + TypeScript 6 + Tailwind v4
 ui_languages: English (default), Turkish
-test_counts: 26 contract tests, 25 anchor tests
+test_counts: 26 contract tests, 32 anchor tests
 live_url: https://stelpools.vercel.app
 hackathon: Stellar Pro Hackathon
 track: Genesis
@@ -57,7 +57,7 @@ it is the ratio of the reserves.
 [![Soroban](https://img.shields.io/badge/Soroban-SDK%2028.0.0-3E1BDB?style=flat-square)](https://developers.stellar.org/docs/build/smart-contracts)
 [![Rust](https://img.shields.io/badge/Rust-wasm32v1--none-CE422B?style=flat-square&logo=rust)](https://www.rust-lang.org/)
 [![React](https://img.shields.io/badge/React-19-61DAFB?style=flat-square&logo=react)](https://react.dev)
-[![Tests](https://img.shields.io/badge/tests-26%20contract%20%2B%2025%20anchor-2ea043?style=flat-square)](#-demo--tests)
+[![Tests](https://img.shields.io/badge/tests-26%20contract%20%2B%2032%20anchor-2ea043?style=flat-square)](#-demo--tests)
 [![No admin](https://img.shields.io/badge/pool-no%20admin%20key-086844?style=flat-square)](#the-pool-has-no-owner)
 [![License](https://img.shields.io/badge/license-MIT-black?style=flat-square)](#)
 
@@ -316,7 +316,7 @@ those into the browser bundle.
 
 ```bash
 cargo test -p try-usdc-amm                       # 26 pool tests
-cd services/anchor && npm test                   # 25 anchor tests
+cd services/anchor && npm test                   # 32 anchor tests
 cd web && npx tsc -b --noEmit && npm run build
 ```
 

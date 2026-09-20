@@ -18,7 +18,7 @@ seps_implemented: SEP-1, SEP-6, SEP-10, SEP-12, SEP-41
 services: services/anchor (Node + Express + SQLite, issues aTRY)
 frontend: React 19 + Vite 8 + TypeScript 6 + Tailwind v4
 ui_languages: English (default), Turkish
-test_counts: 26 contract tests, 25 anchor tests
+test_counts: 26 contract tests, 32 anchor tests
 live_url: https://stelpools.vercel.app
 hackathon: Stellar Pro Hackathon
 track: Genesis
@@ -315,7 +315,7 @@ paketinin içine gömer.
 
 ```bash
 cargo test -p try-usdc-amm                       # 26 havuz testi
-cd services/anchor && npm test                   # 25 anchor testi
+cd services/anchor && npm test                   # 32 anchor testi
 cd web && npx tsc -b --noEmit && npm run build
 ```
 

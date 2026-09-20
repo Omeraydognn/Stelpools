@@ -34,6 +34,33 @@ import { isMissingTrustline, isRetryable, StellarOps } from "./stellar.js";
  * polling anyway, and none of the guarantees above depend on which mode is
  * in use. They come from the ledger, not from this object.
  */
+/** Statuses where a tick has work it could finish right now. */
+const DRIVABLE = new Set(["pending_anchor", "pending_trust", "submitting"]);
+
+/**
+ * Should a poll for this transaction turn the crank?
+ *
+ * Only in request mode, and only when a tick could actually finish something.
+ * A *deposit* in `pending_user_transfer_start` is waiting on a bank and there
+ * is nothing due, so it is deliberately excluded; the transfer report drives
+ * that moment instead.
+ *
+ * A *withdrawal* in the same status is the opposite case, and it is the one
+ * that bit us. What it waits for is an aTRY payment that may already be on
+ * the ledger, and `collectBurns` is the only thing that will ever notice it.
+ * In request mode nothing else ticks, so without this a withdrawal whose burn
+ * has landed stays "waiting for your money" forever. That happened in
+ * production, with the payment sitting on the ledger the whole time.
+ */
+export function shouldDrive(
+  tx: { kind: string; status: string },
+  mode: "timer" | "request",
+): boolean {
+  if (mode !== "request") return false;
+  if (DRIVABLE.has(tx.status)) return true;
+  return tx.kind === "withdrawal" && tx.status === "pending_user_transfer_start";
+}
+
 export class PayoutWorker {
   private timer: NodeJS.Timeout | null = null;
   private running = false;

@@ -17,7 +17,7 @@ import {
   withdrawalId,
 } from "./seps.js";
 import { StellarOps, memoFor } from "./stellar.js";
-import { PayoutWorker } from "./worker.js";
+import { PayoutWorker, shouldDrive } from "./worker.js";
 
 export const cfg = loadConfig();
 export const log = pino({
@@ -369,8 +369,6 @@ app.get("/sep6/withdraw", async (req: Request, res: Response) => {
   });
 });
 
-const DRIVABLE = new Set(["pending_anchor", "pending_trust", "submitting"]);
-
 app.get("/sep6/transaction", async (req: Request, res: Response) => {
   const account = authed(req, res);
   if (!account) return;
@@ -382,7 +380,7 @@ app.get("/sep6/transaction", async (req: Request, res: Response) => {
 
   // The caller is waiting on this one, so let their poll do the work. Only
   // when there is work: an already-finished transaction answers instantly.
-  if (cfg.WORKER_MODE === "request" && DRIVABLE.has(tx.status)) {
+  if (shouldDrive(tx, cfg.WORKER_MODE)) {
     await worker.tickOnce().catch((err) => log.error({ err }, "request-driven tick failed"));
     tx = (await store.tx(tx.id)) ?? tx;
   }
@@ -409,7 +407,15 @@ app.post("/worker/tick", async (_req: Request, res: Response) => {
 app.get("/sep6/transactions", async (req: Request, res: Response) => {
   const account = authed(req, res);
   if (!account) return;
-  res.json({ transactions: (await store.listTxs(account)).map(present) });
+  let txs = await store.listTxs(account);
+  // The interface polls this list as well as the single transaction, and for
+  // a withdrawal it is usually the only thing polling at all. One tick covers
+  // every row, so ask once and re-read rather than ticking per transaction.
+  if (txs.some((tx) => shouldDrive(tx, cfg.WORKER_MODE))) {
+    await worker.tickOnce().catch((err) => log.error({ err }, "request-driven tick failed"));
+    txs = await store.listTxs(account);
+  }
+  res.json({ transactions: txs.map(present) });
 });
 
 /** A human-readable page, handy when debugging a stuck transfer. */
