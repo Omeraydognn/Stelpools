@@ -6,6 +6,7 @@ import { config } from "../lib/config";
 import { truncateAddress } from "../lib/format";
 import { num, pct, usdc as fmt, useT } from "../lib/i18n";
 import { useAsync } from "../lib/useAsync";
+import { PoolChart } from "./PoolChart";
 import { AnchorActivity } from "./AnchorActivity";
 import { LiquidityCard } from "./LiquidityCard";
 import { RampCard } from "./RampCard";
@@ -31,6 +32,7 @@ export function PoolView({
   connecting: boolean;
 }) {
   const t = useT();
+  const [chartRevision, setChartRevision] = useState(0);
   const [tab, setTab] = useState<Tab>("swap");
 
   // Reads are simulations and need a source account; without a wallet, any
@@ -43,6 +45,7 @@ export function PoolView({
   );
 
   const refresh = () => {
+    setChartRevision(n => n + 1);
     pool.reload();
     account.reload();
   };
@@ -98,8 +101,9 @@ export function PoolView({
         </dl>
       </div>
 
-      <div className="vault-layout">
-        <div className="grid gap-4">
+      <div className="vault-layout pool-market-layout">
+        <div className="grid gap-4 min-w-0">
+          <PoolChart spotPrice={p.spotPrice} refreshKey={chartRevision} />
           <Card className="grid gap-3">
             <h3 className="text-sm font-medium">{t("pool2.yourPosition")}</h3>
             {!address ? (

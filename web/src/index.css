@@ -326,3 +326,39 @@ h2 em, .trading-intro em { font-style: normal; color: var(--primary); }
   .header-inner.is-connected { flex-wrap: wrap; padding-block: 12px; }
   .is-connected .header-actions { width: 100%; margin-left: 0; justify-content: space-between; }
 }
+
+/* Pool market view: Curve-style chart structure, Stelpools color tokens. */
+.pool-chart { width: 100%; min-width: 0; overflow: hidden; }
+.chart-heading, .chart-summary, .chart-toolbar, .chart-footer { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.chart-eyebrow { font-size: 10px; letter-spacing: .12em; color: var(--muted-foreground); }
+.chart-heading h3 { font: 600 18px var(--font-sans); margin-top: 5px; }
+.chart-source { display: flex; align-items: center; gap: 7px; font-size: 11px; color: var(--muted-foreground); }
+.chart-summary { justify-content: flex-start; flex-wrap: wrap; margin-block: 22px; gap: 12px; }
+.chart-summary > strong { font-size: clamp(22px, 2.3vw, 30px); font-weight: 500; letter-spacing: -.04em; }
+.chart-summary small { font: 12px var(--font-sans); color: var(--muted-foreground); letter-spacing: 0; }
+.chart-change { font-size: 12px; color: var(--primary); }
+.chart-change small { display: block; font-size: 10px; }
+.chart-change.is-negative { color: var(--destructive); }
+.chart-toolbar { padding-block: 10px; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); flex-wrap: wrap; gap: 4px; }
+.chart-toggle, .chart-ranges { display: flex; gap: 2px; }
+.chart-toolbar button { min-width: 40px; min-height: 40px; padding: 8px 10px; font-size: 12px; border-radius: var(--radius); color: var(--muted-foreground); }
+.chart-toolbar button[aria-pressed=true] { background: var(--mint); color: var(--foreground); font-weight: 600; }
+.chart-toolbar button:hover { background: var(--secondary); }
+.chart-ohlc { display: flex; flex-wrap: wrap; gap: 5px 12px; padding-block: 14px; min-height: 62px; font-size: 10px; color: var(--muted-foreground); align-items: center; }
+.chart-ohlc > span:first-child { flex-basis: 100%; }
+.chart-ohlc b { font-weight: 400; color: var(--foreground); }
+.chart-ohlc abbr { text-decoration: none; }
+.market-chart { display: block; width: 100%; height: auto; aspect-ratio: 760 / 360; touch-action: pan-y; }
+.chart-grid { stroke: var(--border); stroke-width: .7; }
+.chart-axis { fill: var(--muted-foreground); font: 11px var(--font-mono); }
+.chart-price-label { fill: var(--hero-text); }
+.chart-footer { border-top: 1px solid var(--border); margin-top: 16px; font-size: 10px; line-height: 1.6; color: var(--muted-foreground); }
+.chart-footer button { flex-shrink: 0; color: var(--primary); padding: 6px; min-height: 40px; }
+.chart-retention { font-size: 10px; line-height: 1.7; color: var(--muted-foreground); margin-top: 4px; }
+.chart-placeholder { min-height: 300px; display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 12px; padding: 24px; text-align: center; background: var(--background); }
+.chart-placeholder-icon { font: 40px var(--font-display); color: var(--primary); }
+.chart-placeholder strong { font-size: 14px; }.chart-placeholder p { font-size: 12px; color: var(--muted-foreground); }.chart-placeholder button { color: var(--primary); font-size: 12px; text-decoration: underline; }
+.chart-loading { background: var(--secondary); }
+@media (min-width: 1051px) { .pool-market-layout { grid-template-columns: minmax(0, 1fr) 350px; } }
+@media (max-width: 800px) { .pool-market-layout > .trade-panel { grid-row: auto; } .pool-market-layout { display: flex; flex-direction: column; } .pool-market-layout > div { width: 100%; } .pool-market-layout > div:first-child { display: contents; } .pool-market-layout .pool-chart { order: -2; } .pool-market-layout > .trade-panel { order: -1; } }
+@media (max-width: 540px) { .pool-chart { padding: 14px; }.market-chart { min-height: 230px; }.chart-axis { font-size: 13px; }.chart-source { font-size: 10px; }.chart-placeholder { min-height: 230px; } }
