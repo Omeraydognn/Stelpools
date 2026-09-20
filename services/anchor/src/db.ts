@@ -1,17 +1,18 @@
-import { mkdirSync } from "node:fs";
-import { dirname } from "node:path";
-import { DatabaseSync } from "node:sqlite";
+import { Pool, type PoolClient } from "pg";
 
 /**
  * The anchor's ledger.
  *
  * Everything that matters survives a restart, because the thing an anchor
  * must never do is forget that it owes somebody money. A crash between
- * taking the lira and delivering the token has to be recoverable from
- * disk alone, so the state machine lives here rather than in memory.
+ * taking the lira and delivering the token has to be recoverable from the
+ * ledger alone, so the state machine lives here rather than in memory.
  *
- * SQLite is used through Node's built-in binding: one file, real
- * transactions, no service to run beside this one.
+ * Postgres rather than a file, because the process this runs in may be
+ * replaced between any two requests. That also means the guarantees cannot
+ * come from "there is only one worker" — they have to come from the
+ * database, which is why the claim below is a conditional UPDATE and not a
+ * lock held in this process.
  */
 
 export type TxKind = "deposit" | "withdrawal";
@@ -71,8 +72,8 @@ CREATE TABLE IF NOT EXISTS customers (
   bank_account_number TEXT,
   bank_name           TEXT,
   status              TEXT NOT NULL,
-  created_at          TEXT NOT NULL,
-  updated_at          TEXT NOT NULL
+  created_at          TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at          TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 CREATE TABLE IF NOT EXISTS transactions (
@@ -89,10 +90,10 @@ CREATE TABLE IF NOT EXISTS transactions (
   stellar_transaction_id  TEXT,
   message                 TEXT,
   attempts                INTEGER NOT NULL DEFAULT 0,
-  next_attempt_at         TEXT,
-  started_at              TEXT NOT NULL,
-  updated_at              TEXT NOT NULL,
-  completed_at            TEXT
+  next_attempt_at         TIMESTAMPTZ,
+  started_at              TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at              TIMESTAMPTZ NOT NULL DEFAULT now(),
+  completed_at            TIMESTAMPTZ
 );
 
 CREATE INDEX IF NOT EXISTS tx_by_account ON transactions(account, started_at DESC);
@@ -107,43 +108,90 @@ CREATE TABLE IF NOT EXISTS cursors (
 );
 `;
 
-export class Store {
-  private readonly db: DatabaseSync;
+/** Columns a caller may set through `update`. Anything else is ignored. */
+const UPDATABLE = new Set([
+  "status",
+  "amount_in",
+  "amount_out",
+  "amount_fee",
+  "external_transaction_id",
+  "stellar_transaction_id",
+  "message",
+  "attempts",
+  "next_attempt_at",
+  "completed_at",
+]);
 
-  constructor(path: string) {
-    if (path !== ":memory:") mkdirSync(dirname(path), { recursive: true });
-    this.db = new DatabaseSync(path);
-    // WAL survives a hard kill mid-write; FULL sync means a completed
-    // payout is on disk before we admit to it.
-    this.db.exec("PRAGMA journal_mode = WAL");
-    this.db.exec("PRAGMA synchronous = FULL");
-    this.db.exec("PRAGMA foreign_keys = ON");
-    this.db.exec(SCHEMA);
+/** Timestamps come back as Date; the rest of the app speaks ISO strings. */
+function row<T>(r: Record<string, unknown> | undefined): T | null {
+  if (!r) return null;
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(r)) out[k] = v instanceof Date ? v.toISOString() : v;
+  return out as T;
+}
+
+export class Store {
+  private readonly pool: Pool;
+  private ready: Promise<void> | null = null;
+
+  constructor(connectionString: string) {
+    this.pool = new Pool({
+      connectionString,
+      // Managed Postgres is TLS-only and presents a chain Node does not
+      // ship a root for; the connection is still encrypted.
+      ssl: /localhost|127\.0\.0\.1/.test(connectionString)
+        ? false
+        : { rejectUnauthorized: false },
+      max: 4,
+      idleTimeoutMillis: 10_000,
+      connectionTimeoutMillis: 8_000,
+    });
   }
 
-  close(): void {
-    this.db.close();
+  /** Create the schema once per process, and only when first needed. */
+  async init(): Promise<void> {
+    this.ready ??= this.pool.query(SCHEMA).then(() => undefined);
+    return this.ready;
+  }
+
+  private async q<T>(text: string, values: unknown[] = []): Promise<T[]> {
+    await this.init();
+    const result = await this.pool.query(text, values);
+    return result.rows.map((r) => row<T>(r as Record<string, unknown>)!);
+  }
+
+  async close(): Promise<void> {
+    await this.pool.end();
+  }
+
+  /** For the health check: can we actually reach the ledger? */
+  async ping(): Promise<boolean> {
+    try {
+      await this.q("SELECT 1");
+      return true;
+    } catch {
+      return false;
+    }
   }
 
   // ------------------------------------------------------------ customers
 
-  upsertCustomer(c: Omit<Customer, "created_at" | "updated_at">): Customer {
-    const now = new Date().toISOString();
-    this.db
-      .prepare(
-        `INSERT INTO customers (account, id, first_name, last_name, email_address,
-                                bank_account_number, bank_name, status, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-         ON CONFLICT(account) DO UPDATE SET
-           first_name          = COALESCE(excluded.first_name, customers.first_name),
-           last_name           = COALESCE(excluded.last_name, customers.last_name),
-           email_address       = COALESCE(excluded.email_address, customers.email_address),
-           bank_account_number = COALESCE(excluded.bank_account_number, customers.bank_account_number),
-           bank_name           = COALESCE(excluded.bank_name, customers.bank_name),
-           status              = excluded.status,
-           updated_at          = excluded.updated_at`,
-      )
-      .run(
+  async upsertCustomer(
+    c: Omit<Customer, "created_at" | "updated_at">,
+  ): Promise<Customer> {
+    await this.q(
+      `INSERT INTO customers (account, id, first_name, last_name, email_address,
+                              bank_account_number, bank_name, status)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+       ON CONFLICT (account) DO UPDATE SET
+         first_name          = COALESCE(EXCLUDED.first_name, customers.first_name),
+         last_name           = COALESCE(EXCLUDED.last_name, customers.last_name),
+         email_address       = COALESCE(EXCLUDED.email_address, customers.email_address),
+         bank_account_number = COALESCE(EXCLUDED.bank_account_number, customers.bank_account_number),
+         bank_name           = COALESCE(EXCLUDED.bank_name, customers.bank_name),
+         status              = EXCLUDED.status,
+         updated_at          = now()`,
+      [
         c.account,
         c.id,
         c.first_name,
@@ -152,34 +200,31 @@ export class Store {
         c.bank_account_number,
         c.bank_name,
         c.status,
-        now,
-        now,
-      );
-    return this.customer(c.account)!;
+      ],
+    );
+    return (await this.customer(c.account))!;
   }
 
-  customer(account: string): Customer | null {
-    return (
-      (this.db.prepare("SELECT * FROM customers WHERE account = ?").get(account) as
-        | Customer
-        | undefined) ?? null
-    );
+  async customer(account: string): Promise<Customer | null> {
+    const rows = await this.q<Customer>("SELECT * FROM customers WHERE account = $1", [account]);
+    return rows[0] ?? null;
   }
 
   // --------------------------------------------------------- transactions
 
-  insertTx(
-    tx: Omit<AnchorTx, "attempts" | "next_attempt_at" | "started_at" | "updated_at" | "completed_at">,
-  ): AnchorTx {
-    const now = new Date().toISOString();
-    this.db
-      .prepare(
-        `INSERT INTO transactions (id, kind, account, status, amount_in, amount_out, amount_fee,
-                                   reference, memo, external_transaction_id, stellar_transaction_id,
-                                   message, attempts, next_attempt_at, started_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, NULL, ?, ?)`,
-      )
-      .run(
+  async insertTx(
+    tx: Omit<
+      AnchorTx,
+      "attempts" | "next_attempt_at" | "started_at" | "updated_at" | "completed_at"
+    >,
+  ): Promise<AnchorTx> {
+    const rows = await this.q<AnchorTx>(
+      `INSERT INTO transactions (id, kind, account, status, amount_in, amount_out, amount_fee,
+                                 reference, memo, external_transaction_id, stellar_transaction_id,
+                                 message, attempts)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,0)
+       RETURNING *`,
+      [
         tx.id,
         tx.kind,
         tx.account,
@@ -192,112 +237,122 @@ export class Store {
         tx.external_transaction_id,
         tx.stellar_transaction_id,
         tx.message,
-        now,
-        now,
-      );
-    return this.tx(tx.id)!;
-  }
-
-  tx(id: string): AnchorTx | null {
-    return (
-      (this.db.prepare("SELECT * FROM transactions WHERE id = ?").get(id) as
-        | AnchorTx
-        | undefined) ?? null
+      ],
     );
+    return rows[0]!;
   }
 
-  txByReference(reference: string): AnchorTx | null {
-    return (
-      (this.db.prepare("SELECT * FROM transactions WHERE reference = ?").get(reference) as
-        | AnchorTx
-        | undefined) ?? null
+  async tx(id: string): Promise<AnchorTx | null> {
+    const rows = await this.q<AnchorTx>("SELECT * FROM transactions WHERE id = $1", [id]);
+    return rows[0] ?? null;
+  }
+
+  async txByReference(reference: string): Promise<AnchorTx | null> {
+    const rows = await this.q<AnchorTx>("SELECT * FROM transactions WHERE reference = $1", [
+      reference,
+    ]);
+    return rows[0] ?? null;
+  }
+
+  async txByMemo(memo: string): Promise<AnchorTx | null> {
+    const rows = await this.q<AnchorTx>(
+      "SELECT * FROM transactions WHERE memo = $1 ORDER BY started_at DESC LIMIT 1",
+      [memo],
     );
+    return rows[0] ?? null;
   }
 
-  txByMemo(memo: string): AnchorTx | null {
-    return (
-      (this.db
-        .prepare("SELECT * FROM transactions WHERE memo = ? ORDER BY started_at DESC")
-        .get(memo) as AnchorTx | undefined) ?? null
+  async listTxs(account: string, limit = 50): Promise<AnchorTx[]> {
+    return this.q<AnchorTx>(
+      "SELECT * FROM transactions WHERE account = $1 ORDER BY started_at DESC LIMIT $2",
+      [account, limit],
     );
-  }
-
-  listTxs(account: string, limit = 50): AnchorTx[] {
-    return this.db
-      .prepare("SELECT * FROM transactions WHERE account = ? ORDER BY started_at DESC LIMIT ?")
-      .all(account, limit) as unknown as AnchorTx[];
   }
 
   /**
    * Move a transaction from one status to another, and only from that one.
    *
-   * This is the whole of the concurrency story: the worker claims a job by
-   * winning this UPDATE. A second worker, or a retry of the same one, finds
-   * zero rows changed and does nothing — so a deposit cannot be paid twice
-   * even if the process is restarted mid-flight.
+   * This is the whole of the concurrency story, and it is why the anchor is
+   * safe to run in a place where several copies of it may be alive at once:
+   * a worker claims a job by winning this UPDATE. Everyone else — a second
+   * instance, a retry, a duplicate request — finds zero rows changed and
+   * does nothing, so a deposit cannot be paid twice.
    */
-  claim(id: string, from: TxStatus, to: TxStatus): boolean {
-    const result = this.db
-      .prepare(
-        "UPDATE transactions SET status = ?, updated_at = ? WHERE id = ? AND status = ?",
-      )
-      .run(to, new Date().toISOString(), id, from);
-    return Number(result.changes) === 1;
+  async claim(id: string, from: TxStatus, to: TxStatus): Promise<boolean> {
+    await this.init();
+    const result = await this.pool.query(
+      "UPDATE transactions SET status = $1, updated_at = now() WHERE id = $2 AND status = $3",
+      [to, id, from],
+    );
+    return result.rowCount === 1;
   }
 
-  update(id: string, fields: Partial<Omit<AnchorTx, "id">>): AnchorTx | null {
-    const keys = Object.keys(fields);
-    if (keys.length === 0) return this.tx(id);
-    const set = keys.map((k) => `${k} = ?`).join(", ");
-    const values = keys.map((k) => (fields as Record<string, unknown>)[k] as never);
-    this.db
-      .prepare(`UPDATE transactions SET ${set}, updated_at = ? WHERE id = ?`)
-      .run(...values, new Date().toISOString(), id);
-    return this.tx(id);
+  async update(id: string, fields: Partial<Omit<AnchorTx, "id">>): Promise<AnchorTx | null> {
+    const entries = Object.entries(fields).filter(([k]) => UPDATABLE.has(k));
+    if (entries.length === 0) return this.tx(id);
+    const set = entries.map(([k], i) => `${k} = $${i + 2}`).join(", ");
+    const rows = await this.q<AnchorTx>(
+      `UPDATE transactions SET ${set}, updated_at = now() WHERE id = $1 RETURNING *`,
+      [id, ...entries.map(([, v]) => v)],
+    );
+    return rows[0] ?? null;
   }
 
   /** Deposits whose lira has arrived and whose tokens are not out yet. */
-  duePayouts(now = new Date()): AnchorTx[] {
-    return this.db
-      .prepare(
-        `SELECT * FROM transactions
-          WHERE kind = 'deposit'
-            AND status IN ('pending_anchor', 'pending_trust')
-            AND (next_attempt_at IS NULL OR next_attempt_at <= ?)
-          ORDER BY started_at ASC
-          LIMIT 20`,
-      )
-      .all(now.toISOString()) as unknown as AnchorTx[];
+  async duePayouts(now = new Date()): Promise<AnchorTx[]> {
+    return this.q<AnchorTx>(
+      `SELECT * FROM transactions
+        WHERE kind = 'deposit'
+          AND status IN ('pending_anchor', 'pending_trust')
+          AND (next_attempt_at IS NULL OR next_attempt_at <= $1)
+        ORDER BY started_at ASC
+        LIMIT 20`,
+      [now.toISOString()],
+    );
   }
 
   /**
    * Anything left mid-flight by a crash.
    *
-   * `submitting` means the process died with a payment possibly already on
-   * the network, so recovery has to look at the chain before retrying
-   * rather than simply paying again.
+   * `submitting` means a process died with a payment possibly already on the
+   * network, so recovery has to look at the chain before retrying rather
+   * than simply paying again. A `submitting` row older than a minute is
+   * certainly abandoned: nothing legitimate stays there that long.
    */
-  strandedPayouts(): AnchorTx[] {
-    return this.db
-      .prepare("SELECT * FROM transactions WHERE status = 'submitting' ORDER BY started_at ASC")
-      .all() as unknown as AnchorTx[];
+  async strandedPayouts(olderThanMs = 60_000): Promise<AnchorTx[]> {
+    return this.q<AnchorTx>(
+      `SELECT * FROM transactions
+        WHERE status = 'submitting' AND updated_at < $1
+        ORDER BY started_at ASC`,
+      [new Date(Date.now() - olderThanMs).toISOString()],
+    );
   }
 
   // -------------------------------------------------------------- cursors
 
-  cursor(name: string): string | null {
-    const row = this.db.prepare("SELECT value FROM cursors WHERE name = ?").get(name) as
-      | { value: string }
-      | undefined;
-    return row?.value ?? null;
+  async cursor(name: string): Promise<string | null> {
+    const rows = await this.q<{ value: string }>("SELECT value FROM cursors WHERE name = $1", [
+      name,
+    ]);
+    return rows[0]?.value ?? null;
   }
 
-  setCursor(name: string, value: string): void {
-    this.db
-      .prepare(
-        `INSERT INTO cursors (name, value) VALUES (?, ?)
-         ON CONFLICT(name) DO UPDATE SET value = excluded.value`,
-      )
-      .run(name, value);
+  async setCursor(name: string, value: string): Promise<void> {
+    await this.q(
+      `INSERT INTO cursors (name, value) VALUES ($1, $2)
+       ON CONFLICT (name) DO UPDATE SET value = EXCLUDED.value`,
+      [name, value],
+    );
+  }
+
+  /** Escape hatch for tests that need a raw connection. */
+  async withClient<T>(fn: (c: PoolClient) => Promise<T>): Promise<T> {
+    await this.init();
+    const client = await this.pool.connect();
+    try {
+      return await fn(client);
+    } finally {
+      client.release();
+    }
   }
 }

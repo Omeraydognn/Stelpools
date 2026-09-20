@@ -1,8 +1,19 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" translate="no">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    <!--
+      Do not machine-translate this page.
+
+      Chrome's translator swaps out text nodes underneath React, which then
+      cannot find the nodes it is holding and throws on insertBefore — the
+      page dies with a DOM error that looks like our bug and is not. The app
+      already ships both languages behind a toggle, so there is nothing for a
+      translator to add and a real crash to avoid.
+    -->
+    <meta name="google" content="notranslate" />
 
     <title>Stelpools — TRY ⇄ USDC Liquidity Vault</title>
     <meta

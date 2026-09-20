@@ -58,17 +58,31 @@ test("an expired token is refused", () => {
 });
 
 // ----------------------------------------------------------------- ledger
+//
+// These need a real Postgres, because what they are testing is Postgres
+// behaviour: that a conditional UPDATE is the thing which makes a double
+// payout impossible. A fake would prove nothing. Point TEST_DATABASE_URL at
+// a throwaway database to run them.
 
-function store(): Store {
-  return new Store(":memory:");
+const TEST_DB = process.env.TEST_DATABASE_URL;
+const needsDb = { skip: TEST_DB ? false : "set TEST_DATABASE_URL to run the ledger tests" };
+
+async function freshStore(): Promise<Store> {
+  const s = new Store(TEST_DB!);
+  await s.init();
+  // Start from empty: these assert on counts and uniqueness.
+  await s.withClient(async (c) => {
+    await c.query("TRUNCATE transactions, customers, cursors");
+  });
+  return s;
 }
 
-function deposit(s: Store, id = "dep_TEST0001") {
-  return s.insertTx({
+function depositFields(id = "dep_TEST0001") {
+  return {
     id,
-    kind: "deposit",
+    kind: "deposit" as const,
     account: ACCOUNT,
-    status: "pending_user_transfer_start",
+    status: "pending_user_transfer_start" as const,
     amount_in: "1000.00",
     amount_out: "1000.0000000",
     amount_fee: "0.0000000",
@@ -77,132 +91,128 @@ function deposit(s: Store, id = "dep_TEST0001") {
     external_transaction_id: null,
     stellar_transaction_id: null,
     message: null,
-  });
+  };
 }
 
-test("a deposit is written and read back whole", () => {
-  const s = store();
-  const tx = deposit(s);
+test("a deposit is written and read back whole", needsDb, async () => {
+  const s = await freshStore();
+  const tx = await s.insertTx(depositFields());
   assert.equal(tx.status, "pending_user_transfer_start");
-  assert.equal(s.tx(tx.id)?.amount_out, "1000.0000000");
-  assert.equal(s.txByReference(tx.reference!)?.id, tx.id);
-  s.close();
+  assert.equal((await s.tx(tx.id))?.amount_out, "1000.0000000");
+  assert.equal((await s.txByReference(tx.reference!))?.id, tx.id);
+  await s.close();
 });
 
-test("a job can only be claimed once — this is what stops a double payout", () => {
-  const s = store();
-  const tx = deposit(s);
-  s.claim(tx.id, "pending_user_transfer_start", "pending_anchor");
+test("a job can only be claimed once — this is what stops a double payout", needsDb, async () => {
+  const s = await freshStore();
+  const tx = await s.insertTx(depositFields());
+  await s.claim(tx.id, "pending_user_transfer_start", "pending_anchor");
 
-  // Two workers, or one worker twice after a restart.
-  assert.equal(s.claim(tx.id, "pending_anchor", "submitting"), true);
-  assert.equal(s.claim(tx.id, "pending_anchor", "submitting"), false);
-  assert.equal(s.tx(tx.id)?.status, "submitting");
-  s.close();
+  // Two workers, or one worker twice, or two copies of the whole process.
+  assert.equal(await s.claim(tx.id, "pending_anchor", "submitting"), true);
+  assert.equal(await s.claim(tx.id, "pending_anchor", "submitting"), false);
+  assert.equal((await s.tx(tx.id))?.status, "submitting");
+  await s.close();
 });
 
-test("claiming from the wrong state does nothing at all", () => {
-  const s = store();
-  const tx = deposit(s);
-  assert.equal(s.claim(tx.id, "pending_anchor", "completed"), false);
-  assert.equal(s.tx(tx.id)?.status, "pending_user_transfer_start");
-  s.close();
+test("two claims racing in parallel: exactly one wins", needsDb, async () => {
+  const s = await freshStore();
+  const tx = await s.insertTx(depositFields());
+  await s.claim(tx.id, "pending_user_transfer_start", "pending_anchor");
+
+  const results = await Promise.all(
+    Array.from({ length: 8 }, () => s.claim(tx.id, "pending_anchor", "submitting")),
+  );
+  assert.equal(results.filter(Boolean).length, 1, "exactly one caller may own the job");
+  await s.close();
 });
 
-test("only deposits whose lira has arrived are due for payout", () => {
-  const s = store();
-  const waiting = deposit(s, "dep_WAITING001");
-  const ready = deposit(s, "dep_READY00001");
-  s.claim(ready.id, "pending_user_transfer_start", "pending_anchor");
+test("claiming from the wrong state does nothing at all", needsDb, async () => {
+  const s = await freshStore();
+  const tx = await s.insertTx(depositFields());
+  assert.equal(await s.claim(tx.id, "pending_anchor", "completed"), false);
+  assert.equal((await s.tx(tx.id))?.status, "pending_user_transfer_start");
+  await s.close();
+});
 
-  const due = s.duePayouts().map((t) => t.id);
+test("only deposits whose lira has arrived are due for payout", needsDb, async () => {
+  const s = await freshStore();
+  const waiting = await s.insertTx(depositFields("dep_WAITING001"));
+  const ready = await s.insertTx(depositFields("dep_READY00001"));
+  await s.claim(ready.id, "pending_user_transfer_start", "pending_anchor");
+
+  const due = (await s.duePayouts()).map((t) => t.id);
   assert.deepEqual(due, [ready.id]);
   assert.ok(!due.includes(waiting.id));
-  s.close();
+  await s.close();
 });
 
-test("a backed-off job is not picked up before its time", () => {
-  const s = store();
-  const tx = deposit(s);
-  s.claim(tx.id, "pending_user_transfer_start", "pending_anchor");
-  s.update(tx.id, { next_attempt_at: new Date(Date.now() + 60_000).toISOString() });
+test("a backed-off job is not picked up before its time", needsDb, async () => {
+  const s = await freshStore();
+  const tx = await s.insertTx(depositFields());
+  await s.claim(tx.id, "pending_user_transfer_start", "pending_anchor");
+  await s.update(tx.id, { next_attempt_at: new Date(Date.now() + 60_000).toISOString() });
 
-  assert.equal(s.duePayouts().length, 0);
-  assert.equal(s.duePayouts(new Date(Date.now() + 120_000)).length, 1);
-  s.close();
+  assert.equal((await s.duePayouts()).length, 0);
+  assert.equal((await s.duePayouts(new Date(Date.now() + 120_000))).length, 1);
+  await s.close();
 });
 
-test("a payout interrupted mid-submit is found again after a restart", () => {
-  const s = store();
-  const tx = deposit(s);
-  s.claim(tx.id, "pending_user_transfer_start", "pending_anchor");
-  s.claim(tx.id, "pending_anchor", "submitting");
+test("a payout interrupted mid-submit is found again later", needsDb, async () => {
+  const s = await freshStore();
+  const tx = await s.insertTx(depositFields());
+  await s.claim(tx.id, "pending_user_transfer_start", "pending_anchor");
+  await s.claim(tx.id, "pending_anchor", "submitting");
 
-  // The process dies here. Whatever restarts must see this row.
-  const stranded = s.strandedPayouts();
+  // Fresh, so not yet assumed abandoned.
+  assert.equal((await s.strandedPayouts()).length, 0);
+  // Old enough that nothing legitimate is still there.
+  const stranded = await s.strandedPayouts(-1);
   assert.equal(stranded.length, 1);
   assert.equal(stranded[0]!.id, tx.id);
-  s.close();
+  await s.close();
 });
 
-test("the same reference cannot be handed out twice", () => {
-  const s = store();
-  deposit(s, "dep_FIRST00001");
-  assert.throws(() =>
-    s.insertTx({
-      id: "dep_SECOND0001",
-      kind: "deposit",
-      account: ACCOUNT,
-      status: "pending_user_transfer_start",
-      amount_in: "1.00",
-      amount_out: "1.0000000",
-      amount_fee: "0",
-      reference: "STP-0001-AAAA", // the one dep_FIRST00001 already holds
-      memo: null,
-      external_transaction_id: null,
-      stellar_transaction_id: null,
-      message: null,
-    }),
+test("the same reference cannot be handed out twice", needsDb, async () => {
+  const s = await freshStore();
+  await s.insertTx(depositFields("dep_FIRST00001"));
+  await assert.rejects(() =>
+    s.insertTx({ ...depositFields("dep_SECOND0001"), reference: "STP-0001-AAAA" }),
   );
-  s.close();
+  await s.close();
 });
 
-test("a withdrawal is found by the memo the user must quote", () => {
-  const s = store();
-  s.insertTx({
-    id: "wdr_TEST0001",
+test("a withdrawal is found by the memo the user must quote", needsDb, async () => {
+  const s = await freshStore();
+  await s.insertTx({
+    ...depositFields("wdr_TEST0001"),
     kind: "withdrawal",
-    account: ACCOUNT,
-    status: "pending_user_transfer_start",
-    amount_in: "500.0000000",
-    amount_out: "500.00",
-    amount_fee: "0",
     reference: null,
     memo: memoFor("wdr_TEST0001"),
-    external_transaction_id: null,
-    stellar_transaction_id: null,
-    message: null,
   });
-  assert.equal(s.txByMemo("wdr_TEST0001")?.kind, "withdrawal");
-  s.close();
+  assert.equal((await s.txByMemo("wdr_TEST0001"))?.kind, "withdrawal");
+  await s.close();
 });
 
-test("the watcher remembers where it stopped reading", () => {
-  const s = store();
-  assert.equal(s.cursor("burns"), null);
-  s.setCursor("burns", "12345-1");
-  s.setCursor("burns", "12345-2");
-  assert.equal(s.cursor("burns"), "12345-2");
-  s.close();
+test("the watcher remembers where it stopped reading", needsDb, async () => {
+  const s = await freshStore();
+  assert.equal(await s.cursor("burns"), null);
+  await s.setCursor("burns", "12345-1");
+  await s.setCursor("burns", "12345-2");
+  assert.equal(await s.cursor("burns"), "12345-2");
+  await s.close();
 });
 
 // ------------------------------------------------------------------ money
 
-const cfg = loadConfig({
+const baseEnv = {
   SEP10_SIGNING_SECRET: "S" + "A".repeat(55),
   ATRY_ISSUER_SECRET: "S" + "B".repeat(55),
   JWT_SECRET: SECRET,
-} as NodeJS.ProcessEnv);
+  DATABASE_URL: "postgres://user:pw@localhost:5432/anchor",
+} as NodeJS.ProcessEnv;
+
+const cfg = loadConfig(baseEnv);
 
 test("one aTRY is one lira", () => {
   assert.equal(quoteDeposit(cfg, 1000).out, "1000.0000000");
@@ -210,34 +220,24 @@ test("one aTRY is one lira", () => {
 });
 
 test("a fee, when configured, comes off the amount rather than being added", () => {
-  const withFee = loadConfig({
-    SEP10_SIGNING_SECRET: "S" + "A".repeat(55),
-    ATRY_ISSUER_SECRET: "S" + "B".repeat(55),
-    JWT_SECRET: SECRET,
-    FEE_BPS: "100",
-  } as NodeJS.ProcessEnv);
+  const withFee = loadConfig({ ...baseEnv, FEE_BPS: "100" } as NodeJS.ProcessEnv);
   assert.equal(quoteDeposit(withFee, 1000).out, "990.0000000");
   assert.equal(quoteWithdraw(withFee, 1000).out, "990.00");
 });
 
+test("a ledger is not optional", () => {
+  const { DATABASE_URL: _drop, ...noDb } = baseEnv as Record<string, string>;
+  assert.throws(() => loadConfig(noDb as NodeJS.ProcessEnv));
+});
+
 test("the two keys must not be the same", () => {
   assert.throws(() =>
-    loadConfig({
-      SEP10_SIGNING_SECRET: "S" + "A".repeat(55),
-      ATRY_ISSUER_SECRET: "S" + "A".repeat(55),
-      JWT_SECRET: SECRET,
-    } as NodeJS.ProcessEnv),
+    loadConfig({ ...baseEnv, ATRY_ISSUER_SECRET: "S" + "A".repeat(55) } as NodeJS.ProcessEnv),
   );
 });
 
 test("a short JWT secret is refused outright", () => {
-  assert.throws(() =>
-    loadConfig({
-      SEP10_SIGNING_SECRET: "S" + "A".repeat(55),
-      ATRY_ISSUER_SECRET: "S" + "B".repeat(55),
-      JWT_SECRET: "too-short",
-    } as NodeJS.ProcessEnv),
-  );
+  assert.throws(() => loadConfig({ ...baseEnv, JWT_SECRET: "too-short" } as NodeJS.ProcessEnv));
 });
 
 // ------------------------------------------------------------- identifiers

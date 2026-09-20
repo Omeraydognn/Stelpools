@@ -15,15 +15,17 @@ const server = app.listen(cfg.PORT, () => {
   );
 });
 
-await worker.start();
+// A timer only where a process survives between requests. On a function
+// host the requests drive the same work; see WORKER_MODE.
+if (cfg.WORKER_MODE === "timer") await worker.start();
+else log.info("worker is request-driven; no timer started");
 
 /** Finish what is in flight, then let go of the database cleanly. */
 function shutdown(signal: string): void {
   log.info({ signal }, "shutting down");
   worker.stop();
   server.close(() => {
-    store.close();
-    process.exit(0);
+    void store.close().finally(() => process.exit(0));
   });
   // Do not hang forever on a stuck connection.
   setTimeout(() => process.exit(1), 10_000).unref();

@@ -138,8 +138,8 @@ export const dict = {
 
   // ---- configuration ----
   "config.usingDefaults": {
-    en: "Environment variables not set: {names}. The app is running on the public testnet defaults.",
-    tr: "Tanımlı olmayan ortam değişkenleri: {names}. Uygulama herkese açık testnet varsayılanlarıyla çalışıyor.",
+    en: "Development note: {names} are not in your .env, so the built-in testnet addresses are being used. This notice never appears in a production build.",
+    tr: "Geliştirme notu: {names} .env dosyanızda yok, bu yüzden yerleşik testnet adresleri kullanılıyor. Bu not üretim derlemesinde hiç görünmez.",
   },
 
   // ---- generic ui ----

@@ -15,9 +15,9 @@ import { isMissingTrustline, isRetryable, StellarOps } from "./stellar.js";
  *
  * So this worker is built to be the opposite:
  *
- *  - every job is a row on disk, never a promise held in memory;
- *  - a job is claimed by an atomic status change, so a restart or a second
- *    worker cannot pay the same deposit twice;
+ *  - every job is a row in the ledger, never a promise held in memory;
+ *  - a job is claimed by an atomic status change, so a restart, a retry or a
+ *    second copy of this process cannot pay the same deposit twice;
  *  - a crash mid-submit is resolved by asking the chain what happened
  *    rather than guessing;
  *  - failures back off and are counted, and a job that exhausts its
@@ -25,6 +25,14 @@ import { isMissingTrustline, isRetryable, StellarOps } from "./stellar.js";
  *  - the loop reports its own liveness, so "the worker is dead" is
  *    something `/health` can tell you instead of something you find out
  *    from an angry user.
+ *
+ * It runs in one of two modes. On a host that keeps a process alive, a timer
+ * drives it. On one that does not — a function that exists only for the
+ * length of a request — the work is driven by the requests themselves:
+ * reporting a transfer and polling a transaction both turn the crank. That
+ * is not a downgrade for an on-ramp, where somebody is always waiting and
+ * polling anyway, and none of the guarantees above depend on which mode is
+ * in use. They come from the ledger, not from this object.
  */
 export class PayoutWorker {
   private timer: NodeJS.Timeout | null = null;
@@ -44,6 +52,7 @@ export class PayoutWorker {
     private readonly log: Logger,
   ) {}
 
+  /** Start the timer. Only for hosts that keep a process running. */
   async start(): Promise<void> {
     await this.recoverStranded();
     const tick = () => {
@@ -60,11 +69,39 @@ export class PayoutWorker {
     if (this.timer) clearTimeout(this.timer);
   }
 
-  /** True when the loop has run recently enough to be believed. */
+  /**
+   * Can this anchor be believed right now?
+   *
+   * With a timer, the answer is whether it has run recently — the whole
+   * point being that a dead loop must not report itself as fine. Driven by
+   * requests there is no loop to watch, so the question becomes whether the
+   * last turn of the crank failed.
+   */
   healthy(now = Date.now()): boolean {
+    if (this.cfg.WORKER_MODE === "request") return this.lastError === null;
     if (!this.lastTickAt) return false;
     return now - this.lastTickAt.getTime() < this.cfg.WORKER_INTERVAL_MS * 10;
   }
+
+  /**
+   * Turn the crank once, from a request.
+   *
+   * Safe to call concurrently: overlapping calls return immediately rather
+   * than queueing, and anything they skip is still due on the next one.
+   * Stranded payouts are swept here too, because in request mode there is
+   * no startup to sweep them at.
+   */
+  async tickOnce(): Promise<void> {
+    if (!this.sweptOnce) {
+      this.sweptOnce = true;
+      await this.recoverStranded().catch((err) =>
+        this.log.error({ err }, "stranded sweep failed"),
+      );
+    }
+    await this.tick();
+  }
+
+  private sweptOnce = false;
 
   /**
    * A process that died between submitting and recording.
@@ -74,7 +111,7 @@ export class PayoutWorker {
    * precisely so this question has an answer.
    */
   private async recoverStranded(): Promise<void> {
-    const stranded = this.store.strandedPayouts();
+    const stranded = await this.store.strandedPayouts();
     if (stranded.length === 0) return;
     this.log.warn({ count: stranded.length }, "resolving payouts left mid-submit");
 
@@ -82,7 +119,7 @@ export class PayoutWorker {
       try {
         const hash = await this.stellar.alreadyPaid(tx.id, tx.account);
         if (hash) {
-          this.store.update(tx.id, {
+          await this.store.update(tx.id, {
             status: "completed",
             stellar_transaction_id: hash,
             completed_at: new Date().toISOString(),
@@ -90,7 +127,7 @@ export class PayoutWorker {
           });
           this.log.info({ id: tx.id, hash }, "recovered: the payment had landed");
         } else {
-          this.store.update(tx.id, { status: "pending_anchor" });
+          await this.store.update(tx.id, { status: "pending_anchor" });
           this.log.info({ id: tx.id }, "recovered: the payment never landed, will retry");
         }
       } catch (err) {
@@ -104,7 +141,7 @@ export class PayoutWorker {
     if (this.running) return;
     this.running = true;
     try {
-      for (const tx of this.store.duePayouts()) {
+      for (const tx of await this.store.duePayouts()) {
         await this.payOut(tx);
       }
       await this.collectBurns();
@@ -120,11 +157,11 @@ export class PayoutWorker {
 
   private async payOut(tx: AnchorTx): Promise<void> {
     // Whoever wins this transition owns the job. Everyone else moves on.
-    if (!this.store.claim(tx.id, tx.status, "submitting")) return;
+    if (!(await this.store.claim(tx.id, tx.status, "submitting"))) return;
 
     const amount = tx.amount_out;
     if (!amount) {
-      this.store.update(tx.id, { status: "error", message: "No amount to pay out." });
+      await this.store.update(tx.id, { status: "error", message: "No amount to pay out." });
       this.failed += 1;
       return;
     }
@@ -133,7 +170,7 @@ export class PayoutWorker {
       // A payment to an account with no trustline fails; asking first turns
       // that into a status the user can act on rather than a wasted attempt.
       if (!(await this.stellar.hasTrustline(tx.account))) {
-        this.store.update(tx.id, {
+        await this.store.update(tx.id, {
           status: "pending_trust",
           message: `Add a ${this.cfg.ATRY_CODE} trustline to receive this payment.`,
           next_attempt_at: new Date(Date.now() + 10_000).toISOString(),
@@ -142,7 +179,7 @@ export class PayoutWorker {
       }
 
       const hash = await this.stellar.issueTo(tx.account, amount, tx.id);
-      this.store.update(tx.id, {
+      await this.store.update(tx.id, {
         status: "completed",
         stellar_transaction_id: hash,
         completed_at: new Date().toISOString(),
@@ -160,7 +197,7 @@ export class PayoutWorker {
     const message = err instanceof Error ? err.message : String(err);
 
     if (isMissingTrustline(err)) {
-      this.store.update(tx.id, {
+      await this.store.update(tx.id, {
         status: "pending_trust",
         attempts,
         message: `Add a ${this.cfg.ATRY_CODE} trustline to receive this payment.`,
@@ -170,7 +207,7 @@ export class PayoutWorker {
     }
 
     if (!isRetryable(err) || attempts >= this.cfg.MAX_PAYOUT_ATTEMPTS) {
-      this.store.update(tx.id, {
+      await this.store.update(tx.id, {
         status: "error",
         attempts,
         message: `Payment failed after ${attempts} attempts: ${message}`,
@@ -182,7 +219,7 @@ export class PayoutWorker {
 
     // Exponential backoff, capped: 2s, 4s, 8s … 2 minutes.
     const delay = Math.min(2_000 * 2 ** (attempts - 1), 120_000);
-    this.store.update(tx.id, {
+    await this.store.update(tx.id, {
       status: "pending_anchor",
       attempts,
       message: null,
@@ -199,16 +236,16 @@ export class PayoutWorker {
    * money and guessing whose would be worse than saying we do not know.
    */
   private async collectBurns(): Promise<void> {
-    const cursor = this.store.cursor("burns");
+    const cursor = await this.store.cursor("burns");
     const payments = await this.stellar.incomingBurns(cursor);
 
     for (const payment of payments) {
       // Advance the cursor first: a payment we have looked at is one we
       // never look at again, even if handling it throws.
-      this.store.setCursor("burns", payment.pagingToken);
+      await this.store.setCursor("burns", payment.pagingToken);
       if (!payment.from || !payment.memo) continue;
 
-      const tx = this.store.txByMemo(payment.memo);
+      const tx = await this.store.txByMemo(payment.memo);
       if (!tx || tx.kind !== "withdrawal") {
         this.log.warn({ memo: payment.memo, from: payment.from }, "aTRY arrived with no matching withdrawal");
         continue;
@@ -217,12 +254,12 @@ export class PayoutWorker {
         this.log.warn({ id: tx.id, from: payment.from }, "withdrawal paid from a different account");
         continue;
       }
-      if (!this.store.claim(tx.id, "pending_user_transfer_start", "pending_anchor")) continue;
+      if (!(await this.store.claim(tx.id, "pending_user_transfer_start", "pending_anchor"))) continue;
 
       // The lira leg is the bank's, and on testnet there is no bank. The
       // tokens are genuinely burned either way: they are back with their
       // issuer and out of circulation.
-      this.store.update(tx.id, {
+      await this.store.update(tx.id, {
         status: "completed",
         amount_in: payment.amount,
         stellar_transaction_id: payment.txId,

@@ -30,7 +30,7 @@ So:
 
 | The failure | What stops it here |
 |---|---|
-| Work held in memory, lost on restart | Every job is a row in SQLite before it is acknowledged |
+| Work held in memory, lost on restart | Every job is a row in the ledger before it is acknowledged |
 | The same deposit paid twice | A job is claimed by an atomic status change; the loser does nothing |
 | A crash between submitting and recording | Each payout carries its own id as a memo, so recovery asks the chain what happened instead of guessing |
 | A payment that fails forever, silently | Attempts are counted, backed off, and a job that runs out says so |
@@ -82,9 +82,54 @@ account's token gets a 404, no token gets a 401.
 cp .env.example .env     # the three secrets, then the bank details
 npm install
 npm run dev              # http://localhost:8790
-npm test                 # 25 tests, no network
+npm test                 # 17 offline; 10 ledger tests need TEST_DATABASE_URL
 ```
 
 The three secrets are a SEP-10 signing key, a JWT secret of at least 32
 characters, and the aTRY issuer key. The config refuses to load if the
 signing key and the issuer key are the same.
+
+## Deploying it
+
+It runs as a Vercel function beside the site, with a managed Postgres for the
+ledger. That needs one change from the local setup and it is worth being
+straight about: **there is no process left alive between requests, so there
+is no timer.** `WORKER_MODE=request` makes the requests drive the same work —
+reporting a transfer and polling a transaction each turn the crank, and
+`POST /worker/tick` is there for anything nobody is polling for.
+
+None of the guarantees move. They were never in the timer: the atomic claim,
+the crash recovery and the double-payout protection all live in the ledger,
+which is exactly why this swap is safe. In request mode the claim is doing
+more work, not less — several copies of the function can be alive at once,
+and the conditional UPDATE is what keeps them from paying the same deposit
+twice. There is a test for that race.
+
+```bash
+cd services/anchor
+npx vercel link            # a second project, beside the web one
+npx vercel storage create  # attach a Postgres store; sets POSTGRES_URL
+
+npx vercel env add SEP10_SIGNING_SECRET production   # stellar keys show anchor-signing
+npx vercel env add ATRY_ISSUER_SECRET production     # stellar keys show atry-issuer
+npx vercel env add JWT_SECRET production             # openssl rand -hex 32
+npx vercel env add WORKER_MODE production            # request
+npx vercel env add HOME_DOMAIN production            # <your-anchor>.vercel.app
+npx vercel env add PUBLIC_URL production             # https://<your-anchor>.vercel.app
+npx vercel env add CORS_ORIGINS production           # https://stelpools.vercel.app
+npx vercel env add ATRY_CODE production              # aTRY
+
+npx vercel deploy --prod
+curl https://<your-anchor>.vercel.app/health
+```
+
+Then point the interface at it and redeploy the site:
+
+```
+VITE_ANCHOR_URL=https://<your-anchor>.vercel.app
+VITE_ANCHOR_HOME_DOMAIN=<your-anchor>.vercel.app
+```
+
+`HOME_DOMAIN` must match `VITE_ANCHOR_HOME_DOMAIN` exactly. The domain is
+signed into every SEP-10 challenge, so a mismatch rejects every login with an
+error that does not mention domains at all.

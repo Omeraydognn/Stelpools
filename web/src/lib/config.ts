@@ -4,11 +4,14 @@
  * A missing variable used to throw while this module was being imported,
  * which happens before anything can render — the page just stayed black. The
  * app is testnet-only and every one of these values is public, so falling
- * back to the deployed vault is strictly better than showing nothing. When a
- * fallback is used the app says so rather than pretending it was configured.
+ * back is strictly better than showing nothing.
+ *
+ * These are not placeholders: they are the addresses actually deployed. A
+ * build with no environment at all is therefore correct, not broken, which
+ * is why `missingEnv` is a development hint and not something a visitor is
+ * ever shown.
  */
 const DEFAULTS = {
-  vaultId: "CCEAE5OSVBV63UVH26JKQ5PWXQPOHTAGL3WSDCCG2GYF23DGWM77VOV2",
   ammId: "CBX67JY3W2MRZZVT4KJKE6BQUAYME6WK6HZ74LDQP7O46QHUPWFAAZTT",
   atryIssuer: "GA6OU57WZIIU47TT56FTNMIYL574WMJ6MDHSS3ION65GTTXLTX2VPUHS",
   atryCode: "aTRY",
@@ -20,18 +23,23 @@ const DEFAULTS = {
   usdcIssuer: "GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5",
 } as const;
 
-/** Variables that were not set and fell back to a default. */
+/**
+ * Variables that fell back to a default.
+ *
+ * Only populated in development. In a production build the defaults are the
+ * intended values, so listing them would be telling a visitor that something
+ * is wrong when nothing is.
+ */
 export const missingEnv: string[] = [];
 
 function fromEnv<K extends keyof typeof DEFAULTS>(name: string, key: K): string {
   const value = import.meta.env[name as keyof ImportMetaEnv] as string | undefined;
   if (value) return value;
-  missingEnv.push(name);
+  if (import.meta.env.DEV) missingEnv.push(name);
   return DEFAULTS[key];
 }
 
 export const config = {
-  vaultId: fromEnv("VITE_VAULT_CONTRACT_ID", "vaultId"),
   /** The constant-product pool. Price lives here and nowhere else. */
   ammId: fromEnv("VITE_AMM_CONTRACT_ID", "ammId"),
   /** aTRY: one token, one lira held by the anchor. */
@@ -50,7 +58,7 @@ export const isTestnet = config.networkPassphrase.includes("Test SDF Network");
 
 if (missingEnv.length > 0) {
   console.warn(
-    `[config] Using testnet defaults for: ${missingEnv.join(", ")}. ` +
-      "Set these in your .env (locally) or in the host's environment variables (when deployed).",
+    `[config] Using the built-in testnet defaults for: ${missingEnv.join(", ")}. ` +
+      "Copy .env.example to .env to point this build somewhere else.",
   );
 }

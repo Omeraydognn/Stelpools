@@ -28,7 +28,7 @@ export const log = pino({
   },
 });
 
-export const store = new Store(cfg.DATABASE_PATH);
+export const store = new Store(cfg.DATABASE_URL);
 export const stellar = new StellarOps(cfg);
 export const worker = new PayoutWorker(cfg, store, stellar, log);
 
@@ -92,13 +92,14 @@ function present(tx: AnchorTx) {
 
 // ------------------------------------------------------------------ health
 
-app.get("/health", (_req: Request, res: Response) => {
-  const healthy = worker.healthy();
+app.get("/health", async (_req: Request, res: Response) => {
+  const [healthy, ledger] = [worker.healthy(), await store.ping()];
   // The worker's liveness is the answer, not the web server's. An anchor
   // whose HTTP is up and whose payouts are dead is the failure mode that
   // matters, and it must not be able to report itself as fine.
-  res.status(healthy ? 200 : 503).json({
-    ok: healthy,
+  res.status(healthy && ledger ? 200 : 503).json({
+    ok: healthy && ledger,
+    ledger: ledger ? "reachable" : "unreachable",
     service: "stelpools-anchor",
     asset: { code: cfg.ATRY_CODE, issuer: stellar.issuerAddress },
     signing_key: SIGNING_ADDRESS,
@@ -171,7 +172,7 @@ const customerBody = z.object({
   bank_name: z.string().max(120).optional(),
 });
 
-app.put("/sep12/customer", (req: Request, res: Response) => {
+app.put("/sep12/customer", async (req: Request, res: Response) => {
   const account = authed(req, res);
   if (!account) return;
   const parsed = customerBody.safeParse(req.body ?? {});
@@ -180,8 +181,8 @@ app.put("/sep12/customer", (req: Request, res: Response) => {
     return;
   }
   const body = parsed.data;
-  const existing = store.customer(account);
-  const saved = store.upsertCustomer({
+  const existing = await store.customer(account);
+  const saved = await store.upsertCustomer({
     account,
     id: existing?.id ?? `cus_${depositId().slice(4)}`,
     first_name: body.first_name ?? null,
@@ -194,10 +195,10 @@ app.put("/sep12/customer", (req: Request, res: Response) => {
   res.status(202).json({ id: saved.id });
 });
 
-app.get("/sep12/customer", (req: Request, res: Response) => {
+app.get("/sep12/customer", async (req: Request, res: Response) => {
   const account = authed(req, res);
   if (!account) return;
-  const customer = store.customer(account);
+  const customer = await store.customer(account);
   if (!customer) {
     res.json({ status: "NEEDS_INFO", fields: { first_name: {}, last_name: {} } });
     return;
@@ -252,7 +253,7 @@ app.get("/sep6/info", (_req: Request, res: Response) => {
   });
 });
 
-app.get("/sep6/deposit", (req: Request, res: Response) => {
+app.get("/sep6/deposit", async (req: Request, res: Response) => {
   const account = authed(req, res);
   if (!account) return;
   if (String(req.query.asset_code ?? "") !== cfg.ATRY_CODE) {
@@ -275,7 +276,7 @@ app.get("/sep6/deposit", (req: Request, res: Response) => {
   const { out, fee } = quoteDeposit(cfg, amount);
   const id = depositId();
   const ref = reference();
-  store.insertTx({
+  await store.insertTx({
     id,
     kind: "deposit",
     account: destination,
@@ -317,7 +318,7 @@ app.get("/sep6/deposit", (req: Request, res: Response) => {
   });
 });
 
-app.get("/sep6/withdraw", (req: Request, res: Response) => {
+app.get("/sep6/withdraw", async (req: Request, res: Response) => {
   const account = authed(req, res);
   if (!account) return;
   if (String(req.query.asset_code ?? "") !== cfg.ATRY_CODE) {
@@ -329,7 +330,7 @@ app.get("/sep6/withdraw", (req: Request, res: Response) => {
     res.status(400).json({ error: "amount must be a positive number" });
     return;
   }
-  const customer = store.customer(account);
+  const customer = await store.customer(account);
   if (!customer?.bank_account_number) {
     res.status(403).json({
       error: "Register an IBAN with SEP-12 before withdrawing.",
@@ -341,7 +342,7 @@ app.get("/sep6/withdraw", (req: Request, res: Response) => {
 
   const { out, fee } = quoteWithdraw(cfg, amount);
   const id = withdrawalId();
-  store.insertTx({
+  await store.insertTx({
     id,
     kind: "withdrawal",
     account,
@@ -367,26 +368,52 @@ app.get("/sep6/withdraw", (req: Request, res: Response) => {
   });
 });
 
-app.get("/sep6/transaction", (req: Request, res: Response) => {
+const DRIVABLE = new Set(["pending_anchor", "pending_trust", "submitting"]);
+
+app.get("/sep6/transaction", async (req: Request, res: Response) => {
   const account = authed(req, res);
   if (!account) return;
-  const tx = store.tx(String(req.query.id ?? ""));
+  let tx = await store.tx(String(req.query.id ?? ""));
   if (!tx || tx.account !== account) {
     res.status(404).json({ error: "No such transaction for this account." });
     return;
   }
+
+  // The caller is waiting on this one, so let their poll do the work. Only
+  // when there is work: an already-finished transaction answers instantly.
+  if (cfg.WORKER_MODE === "request" && DRIVABLE.has(tx.status)) {
+    await worker.tickOnce().catch((err) => log.error({ err }, "request-driven tick failed"));
+    tx = (await store.tx(tx.id)) ?? tx;
+  }
   res.json({ transaction: present(tx) });
 });
 
-app.get("/sep6/transactions", (req: Request, res: Response) => {
+/**
+ * Turn the crank from outside.
+ *
+ * A backstop for anything nobody is polling for — a user who closed the tab
+ * mid-deposit, or a withdrawal whose burn arrived while the site was idle.
+ * Safe to call as often as you like: it only ever does work that is due.
+ */
+app.post("/worker/tick", async (_req: Request, res: Response) => {
+  await worker.tickOnce();
+  res.json({
+    ok: worker.lastError === null,
+    completed: worker.completed,
+    failed: worker.failed,
+    last_error: worker.lastError,
+  });
+});
+
+app.get("/sep6/transactions", async (req: Request, res: Response) => {
   const account = authed(req, res);
   if (!account) return;
-  res.json({ transactions: store.listTxs(account).map(present) });
+  res.json({ transactions: (await store.listTxs(account)).map(present) });
 });
 
 /** A human-readable page, handy when debugging a stuck transfer. */
-app.get("/sep6/tx/:id", (req: Request, res: Response) => {
-  const tx = store.tx(String(req.params.id));
+app.get("/sep6/tx/:id", async (req: Request, res: Response) => {
+  const tx = await store.tx(String(req.params.id));
   if (!tx) {
     res.status(404).json({ error: "not_found" });
     return;
@@ -401,28 +428,36 @@ app.get("/sep6/tx/:id", (req: Request, res: Response) => {
  * tokens against money nobody sent. In production the bank feed replaces
  * this and nothing else about the flow changes.
  */
-app.post("/sep6/tx/:id/simulate-bank-transfer", (req: Request, res: Response) => {
+app.post("/sep6/tx/:id/simulate-bank-transfer", async (req: Request, res: Response) => {
   if (!cfg.ALLOW_SIMULATED_TRANSFERS) {
     res.status(404).json({ error: "not_found" });
     return;
   }
   const id = String(req.params.id);
-  const tx = store.tx(id);
+  const tx = await store.tx(id);
   if (!tx || tx.kind !== "deposit") {
     res.status(404).json({ error: "No such deposit." });
     return;
   }
   // Only from "waiting for the bank", so calling it twice cannot mint twice.
-  if (!store.claim(id, "pending_user_transfer_start", "pending_anchor")) {
+  if (!(await store.claim(id, "pending_user_transfer_start", "pending_anchor"))) {
     res.status(409).json({ error: `This deposit is already ${tx.status}.`, transaction: present(tx) });
     return;
   }
-  const updated = store.update(id, {
+  const updated = await store.update(id, {
     external_transaction_id: `SIM-${tx.reference ?? id}`,
     message: `TRY received; issuing ${cfg.ATRY_CODE} on Stellar.`,
   });
   log.info({ id }, "simulated bank transfer recorded");
-  res.json({ ok: true, transaction: present(updated!) });
+
+  // Where no timer is running, this request is what drives the payout —
+  // and it is the right moment for it, because the money just arrived.
+  let latest = updated!;
+  if (cfg.WORKER_MODE === "request") {
+    await worker.tickOnce().catch((err) => log.error({ err, id }, "request-driven tick failed"));
+    latest = (await store.tx(id)) ?? latest;
+  }
+  res.json({ ok: true, transaction: present(latest) });
 });
 
 app.use((req: Request, res: Response) => {

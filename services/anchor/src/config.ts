@@ -39,8 +39,18 @@ const schema = z.object({
   MIN_DEPOSIT_TRY: z.coerce.number().positive().default(50),
   MAX_DEPOSIT_TRY: z.coerce.number().positive().default(50_000),
 
-  /** Where the ledger of customers and transactions lives. */
-  DATABASE_PATH: z.string().default("data/anchor.sqlite"),
+  /**
+   * Postgres. Vercel injects POSTGRES_URL; anything compatible works.
+   * The ledger is the anchor's memory, so this is not optional.
+   */
+  DATABASE_URL: z.string().min(10),
+
+  /**
+   * `timer` keeps a loop running and suits a host that keeps a process
+   * alive. `request` does the same work, driven by the requests that care
+   * about it, and is what a function host needs.
+   */
+  WORKER_MODE: z.enum(["timer", "request"]).default("timer"),
 
   /** How often the payout worker looks for work, in milliseconds. */
   WORKER_INTERVAL_MS: z.coerce.number().int().positive().default(2_000),
@@ -61,7 +71,13 @@ const schema = z.object({
 export type Config = z.infer<typeof schema>;
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
-  const parsed = schema.safeParse(env);
+  // Hosts name the connection string differently; accept the common ones so
+  // a managed database can be attached without editing anything.
+  const withDb = {
+    ...env,
+    DATABASE_URL: env.DATABASE_URL ?? env.POSTGRES_URL ?? env.POSTGRES_PRISMA_URL,
+  };
+  const parsed = schema.safeParse(withDb);
   if (!parsed.success) {
     const issues = parsed.error.issues
       .map((i) => `  ${i.path.join(".") || "(root)"}: ${i.message}`)
