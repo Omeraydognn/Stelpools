@@ -97,9 +97,10 @@ app.get("/health", async (_req: Request, res: Response) => {
   // The worker's liveness is the answer, not the web server's. An anchor
   // whose HTTP is up and whose payouts are dead is the failure mode that
   // matters, and it must not be able to report itself as fine.
-  res.status(healthy && ledger ? 200 : 503).json({
-    ok: healthy && ledger,
-    ledger: ledger ? "reachable" : "unreachable",
+  res.status(healthy && ledger.ok ? 200 : 503).json({
+    ok: healthy && ledger.ok,
+    ledger: ledger.ok ? "reachable" : `unreachable — ${ledger.detail}`,
+    worker_mode: cfg.WORKER_MODE,
     service: "stelpools-anchor",
     asset: { code: cfg.ATRY_CODE, issuer: stellar.issuerAddress },
     signing_key: SIGNING_ADDRESS,

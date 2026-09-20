@@ -122,6 +122,21 @@ const UPDATABLE = new Set([
   "completed_at",
 ]);
 
+/**
+ * A short, safe description of why a connection failed.
+ *
+ * `pg` reports a refused connection as an AggregateError whose own message
+ * is empty, so the useful part — ECONNREFUSED, ENOTFOUND — is one level
+ * down. Without this the health check says "unreachable:" and nothing more.
+ */
+function reason(err: unknown): string {
+  const e = err as { message?: string; code?: string; errors?: unknown[] };
+  if (e?.message) return e.message;
+  if (e?.code) return e.code;
+  const inner = e?.errors?.[0] as { message?: string; code?: string } | undefined;
+  return inner?.message ?? inner?.code ?? "connection failed";
+}
+
 /** Timestamps come back as Date; the rest of the app speaks ISO strings. */
 function row<T>(r: Record<string, unknown> | undefined): T | null {
   if (!r) return null;
@@ -133,8 +148,16 @@ function row<T>(r: Record<string, unknown> | undefined): T | null {
 export class Store {
   private readonly pool: Pool;
   private ready: Promise<void> | null = null;
+  /** Host and port only — never the user, password or database name. */
+  private readonly host: string;
 
   constructor(connectionString: string) {
+    try {
+      const u = new URL(connectionString);
+      this.host = `${u.hostname}:${u.port || "5432"}`;
+    } catch {
+      this.host = "(unparseable connection string)";
+    }
     this.pool = new Pool({
       connectionString,
       // Managed Postgres is TLS-only and presents a chain Node does not
@@ -164,13 +187,20 @@ export class Store {
     await this.pool.end();
   }
 
-  /** For the health check: can we actually reach the ledger? */
-  async ping(): Promise<boolean> {
+  /**
+   * Can we actually reach the ledger, and if not, why?
+   *
+   * The reason matters more than the answer: "unreachable" sends you
+   * hunting, while "connection refused at localhost:5432" tells you the
+   * connection string is a placeholder. The host is safe to report; the
+   * credentials are not, so only the host is.
+   */
+  async ping(): Promise<{ ok: boolean; detail?: string }> {
     try {
       await this.q("SELECT 1");
-      return true;
-    } catch {
-      return false;
+      return { ok: true };
+    } catch (err) {
+      return { ok: false, detail: `${this.host}: ${reason(err)}` };
     }
   }
 
