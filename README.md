@@ -40,7 +40,11 @@ translations: README.tr.md (Turkish)
 
 <div align="center">
 
-# Stelpools
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/logo-dark.png" />
+  <img src="docs/logo-light.png" alt="Stelpools" width="420" />
+</picture>
+
 
 ### Stellar TRY ⇄ USDC Liquidity Vault
 

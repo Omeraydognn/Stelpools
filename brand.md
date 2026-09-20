@@ -104,3 +104,28 @@ term — `havale`, `IBAN`, `açıklama` are the words people actually use.
 * **Don't** add a third gradient, or use `--gradient-accent` as a page background.
 * **Don't** hardcode a hex. Every colour comes from a token so light mode keeps working.
 * **Don't** use green/red as the only signal for swap state — colour-blind users need the label too.
+
+## Logo
+
+The wordmark is "Stelpools" with the two `o`s drawn as Stellar's ringed planet.
+A single ring glyph is the standalone mark.
+
+The source art is black ink on white. Everything shipped is generated from it
+so the ink is transparent and the colour is explicit — a black logo on this
+brand's dark background would be invisible.
+
+| File | What it is | Where it is used |
+| --- | --- | --- |
+| `web/public/logo.png` | wordmark, white ink, transparent | the app header (dark UI) |
+| `web/public/logo-dark-bg.png` | wordmark, near-black ink, transparent | any light surface |
+| `web/public/mark.png` | the ring glyph alone, white, transparent | compact placements |
+| `web/public/favicon.png` | 512px rounded square, white mark on `#040c13` | browser tab |
+| `web/public/apple-touch-icon.png` | 180px square, same artwork | iOS home screen |
+| `web/public/og.png` | 1200×630, wordmark centred on `#040c13` | link previews |
+| `docs/logo-light.png` / `docs/logo-dark.png` | wordmark for each GitHub theme | the READMEs, via `<picture>` |
+
+`#040c13` is `--background` in dark mode (`oklch(0.150 0.020 240)`) resolved to sRGB,
+so the icon sits on exactly the same colour as the app.
+
+Give the wordmark clear space of at least the height of the ring glyph on every
+side, and never re-colour it: it is white on dark, near-black on light.

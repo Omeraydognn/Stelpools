@@ -57,8 +57,11 @@ export function Header({
   return (
     <header className="sticky top-0 z-20 border-b border-border bg-background/85 backdrop-blur">
       <div className="mx-auto flex max-w-5xl flex-wrap items-center gap-3 px-4 py-3 sm:px-6">
-        <div className="mr-auto flex items-baseline gap-3">
-          <h1 className="text-base font-semibold tracking-tight">{t("app.name")}</h1>
+        <div className="mr-auto flex items-center gap-3">
+          {/* The wordmark is white ink: this app renders dark-only (see index.html). */}
+          <h1 className="flex">
+            <img src="/logo.png" alt={t("app.name")} width={900} height={220} className="h-5 w-auto" />
+          </h1>
           <span className="rounded-full bg-secondary px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
             {t("app.testnet")}
           </span>
