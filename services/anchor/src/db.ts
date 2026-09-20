@@ -152,19 +152,29 @@ export class Store {
   private readonly host: string;
 
   constructor(connectionString: string) {
+    let local = false;
+    let dsn = connectionString;
     try {
       const u = new URL(connectionString);
       this.host = `${u.hostname}:${u.port || "5432"}`;
+      local = /^(localhost|127\.0\.0\.1|\[::1\])$/.test(u.hostname);
+      // `pg` reads sslmode out of the connection string and builds its own
+      // TLS options from it, which then override anything passed here. A
+      // managed provider sets sslmode=require, Node does not ship a root
+      // for its self-signed chain, and the connection fails with a
+      // certificate error rather than anything about configuration. Drop
+      // the parameter so the options below are the ones that apply.
+      u.searchParams.delete("sslmode");
+      dsn = u.toString();
     } catch {
       this.host = "(unparseable connection string)";
     }
     this.pool = new Pool({
-      connectionString,
-      // Managed Postgres is TLS-only and presents a chain Node does not
-      // ship a root for; the connection is still encrypted.
-      ssl: /localhost|127\.0\.0\.1/.test(connectionString)
-        ? false
-        : { rejectUnauthorized: false },
+      connectionString: dsn,
+      // Encrypted, but without verifying the server's certificate: managed
+      // Postgres presents a chain Node has no root for. Good enough for a
+      // testnet ledger; a production one would pin the provider's CA.
+      ssl: local ? false : { rejectUnauthorized: false },
       max: 4,
       idleTimeoutMillis: 10_000,
       connectionTimeoutMillis: 8_000,
