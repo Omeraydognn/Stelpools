@@ -37,7 +37,7 @@ translations: README.tr.md (Turkish)
 
 ### Stellar TRY ⇄ USDC Automated Market Maker
 
-**Stelpools is an on-chain liquidity pool for the Turkish lira: every lira you deposit arrives in your own wallet as a digital lira, one for one; the pool turns it into dollars; and the rate follows how much lira and how much dollar the pool is holding — neither we nor anyone else can set it by hand.**
+**Stelpools is an on-chain liquidity pool for the Turkish lira: every lira you deposit arrives in your own wallet as a digital lira, one for one, and the rate follows how much lira and how much dollar the pool is holding. The anchor is what lets you move between lira and dollars through the pool, quickly.**
 
 Under the hood: a purpose-built SEP-6 anchor issues `aTRY` one-for-one against lira,
 and a constant-product Soroban pool prices it against USDC. Nothing quotes the rate;
